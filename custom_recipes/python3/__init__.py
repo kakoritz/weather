@@ -48,13 +48,52 @@ class Python3RecipeAndroid(Python3Recipe):
 
     def prebuild_arch(self, arch):
         super().prebuild_arch(arch)
-        # Python 3.11 ignores ac_cv_header_grp_h for module build decisions.
-        # The official way to disable a module is Modules/Setup.local.
-        # grp depends on setgrent/getgrent/endgrent which Android Bionic never had.
         import os
-        setup_local = os.path.join(self.get_build_dir(arch.arch), 'Modules', 'Setup.local')
-        with open(setup_local, 'a') as f:
-            f.write('*disabled* grp\n')
+        # Python 3.11 does not honour Setup.local *disabled* for stdlib modules.
+        # Patch grpmodule.c directly: wrap the group-enumerate block (setgrent /
+        # getgrent / endgrent) in #ifndef __ANDROID__ so it compiles to a no-op
+        # that returns an empty list. Android Bionic never had these functions.
+        grp_c = os.path.join(
+            self.get_build_dir(arch.arch), 'Modules', 'grpmodule.c'
+        )
+        if not os.path.exists(grp_c):
+            return
+        src = open(grp_c).read()
+        old = (
+            '    setgrent();\n'
+            '    while ((p = getgrent()) != NULL) {\n'
+            '        PyObject *v = mkgrent(module, p);\n'
+            '        if (v == NULL || PyList_Append(d, v) != 0) {\n'
+            '            Py_XDECREF(v);\n'
+            '            Py_DECREF(d);\n'
+            '            endgrent();\n'
+            '            return NULL;\n'
+            '        }\n'
+            '        Py_DECREF(v);\n'
+            '    }\n'
+            '    endgrent();'
+        )
+        new = (
+            '#ifndef __ANDROID__\n'
+            '    setgrent();\n'
+            '    while ((p = getgrent()) != NULL) {\n'
+            '        PyObject *v = mkgrent(module, p);\n'
+            '        if (v == NULL || PyList_Append(d, v) != 0) {\n'
+            '            Py_XDECREF(v);\n'
+            '            Py_DECREF(d);\n'
+            '            endgrent();\n'
+            '            return NULL;\n'
+            '        }\n'
+            '        Py_DECREF(v);\n'
+            '    }\n'
+            '    endgrent();\n'
+            '#endif /* __ANDROID__ */'
+        )
+        if old in src:
+            open(grp_c, 'w').write(src.replace(old, new))
+        else:
+            # Already patched or different version — leave it alone
+            pass
 
 
 recipe = Python3RecipeAndroid()
