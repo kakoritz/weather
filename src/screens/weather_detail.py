@@ -59,6 +59,42 @@ class WeatherDetailWidget(FloatLayout):
         # Build immediately with whatever data we have (may be loading state)
         Clock.schedule_once(self._build, 0)
 
+    def show_error(self, msg: str, retry_fn=None):
+        """Replace loading state with a tap-to-retry error screen."""
+        self._weather = None
+        self.clear_widgets()
+        self._bg = WeatherBackground(wmo_code=0, size_hint=(1, 1))
+        self.add_widget(self._bg)
+        content = BoxLayout(orientation='vertical', size_hint=(1, 1), padding=[dp(32), dp(80)])
+        content.add_widget(Label(
+            text=self._location.city,
+            font_size=sp(28), bold=True, color=(1, 1, 1, 0.90),
+            size_hint_y=None, height=dp(40), halign='center', valign='middle',
+        ))
+        content.add_widget(Label(
+            text='Unable to load weather.\nCheck your connection.',
+            font_size=sp(16), color=(1, 1, 1, 0.65),
+            size_hint_y=None, height=dp(56), halign='center', valign='middle',
+        ))
+        if retry_fn:
+            from kivymd.uix.button import MDRaisedButton
+            btn = MDRaisedButton(
+                text='Retry',
+                size_hint=(None, None), size=(dp(120), dp(44)),
+                pos_hint={'center_x': 0.5},
+                on_release=lambda *_: (self._add_loading_state_fresh(), retry_fn()),
+            )
+            content.add_widget(btn)
+        self.add_widget(content)
+
+    def _add_loading_state_fresh(self):
+        self.clear_widgets()
+        self._bg = WeatherBackground(wmo_code=0, size_hint=(1, 1))
+        self.add_widget(self._bg)
+        self._scroll = None
+        self._content = None
+        Clock.schedule_once(self._build, 0)
+
     def update_weather(self, weather: WeatherData):
         self._weather = weather
         self.clear_widgets()
@@ -419,7 +455,10 @@ class WeatherCarouselScreen(MDScreen):
             Clock.schedule_once(_update, 0)
 
         def on_error(msg: str):
-            pass  # keep showing loading/cached state silently
+            def _show_error(dt):
+                if idx < len(self._detail_widgets):
+                    self._detail_widgets[idx].show_error(msg, retry_fn=lambda: self._fetch_weather(idx, loc))
+            Clock.schedule_once(_show_error, 0)
 
         fetch_weather(loc.lat, loc.lon, loc.zip, on_success, on_error)
 
