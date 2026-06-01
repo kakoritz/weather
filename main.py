@@ -4,27 +4,45 @@ Built with Python / Kivy 2.3.0 / KivyMD 1.2.0.
 __version__ = '1.0.0'
 
 import os
-# Suppress Kivy startup log spam on Android
-os.environ.setdefault('KIVY_NO_ENV_CONFIG', '1')
-os.environ.setdefault('KIVY_NO_CONSOLELOG', '1')
+import sys
+import traceback
 
-# Kivy config must be set before any kivy imports
-from kivy.config import Config
-Config.set('kivy', 'exit_on_escape', '0')        # prevent back-key exit on desktop
-Config.set('graphics', 'resizable', '0')
-Config.set('input', 'mouse', 'mouse,multitouch_on_demand')
+# Write crash at import-time errors to /sdcard/ which is world-readable
+def _write_crash(exc, path=None):
+    try:
+        if path is None:
+            path = '/sdcard/weatherapp_crash.log'
+        with open(path, 'w') as f:
+            traceback.print_exception(type(exc), exc, exc.__traceback__, file=f)
+            f.write('\nPython: ' + sys.version + '\n')
+    except Exception:
+        pass
 
-from kivy.clock import Clock
-from kivy.core.window import Window
-from kivy.utils import platform
-from kivymd.app import MDApp
-from kivy.uix.screenmanager import ScreenManager, FadeTransition
+try:
+    os.environ.setdefault('KIVY_NO_ENV_CONFIG', '1')
+    # Keep console logging ON so errors appear in logcat
+    # os.environ.setdefault('KIVY_NO_CONSOLELOG', '1')
 
-from src.models.location import Location
-from src.storage.manager import StorageManager
-from src.screens.add_location import AddLocationScreen
-from src.screens.location_list import LocationListScreen
-from src.screens.weather_detail import WeatherCarouselScreen
+    from kivy.config import Config
+    Config.set('kivy', 'exit_on_escape', '0')
+    Config.set('graphics', 'resizable', '0')
+    Config.set('input', 'mouse', 'mouse,multitouch_on_demand')
+
+    from kivy.clock import Clock
+    from kivy.core.window import Window
+    from kivy.utils import platform
+    from kivymd.app import MDApp
+    from kivy.uix.screenmanager import ScreenManager, FadeTransition
+
+    from src.models.location import Location
+    from src.storage.manager import StorageManager
+    from src.screens.add_location import AddLocationScreen
+    from src.screens.location_list import LocationListScreen
+    from src.screens.weather_detail import WeatherCarouselScreen
+
+except Exception as _import_exc:
+    _write_crash(_import_exc)
+    raise
 
 
 class WeatherApp(MDApp):
@@ -163,4 +181,8 @@ class WeatherApp(MDApp):
 
 
 if __name__ == '__main__':
-    WeatherApp().run()
+    try:
+        WeatherApp().run()
+    except Exception as e:
+        _write_crash(e)
+        raise
