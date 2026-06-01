@@ -15,9 +15,10 @@ fullscreen      = 0
 
 android.minapi      = 24
 android.targetapi   = 34
-# NDK 28c — p4a master (2026.05.09) recommends 28c. Already cached from retris.
-# Previous assumption that 25b was Kivy-specific was incorrect for current p4a.
-android.ndk         = 28c
+# NDK 25b for Kivy. NDK 28c breaks Python 3.11's grp module (Android Bionic removed
+# setgrent/getgrent/endgrent in NDK 28c; NDK 25b still has them).
+# pygame projects use NDK 28c (SIMD fix); Kivy projects need NDK 25b + p4a.source_dir.
+android.ndk         = 25b
 android.archs       = arm64-v8a
 # Pin p4a to last commit before Python 3.14 (3762c88c = Python 3.11.13).
 # p4a master (2026.05.09) uses Python 3.14 which breaks Kivy 2.3.0 —
