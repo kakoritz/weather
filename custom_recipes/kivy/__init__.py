@@ -13,6 +13,11 @@ from pythonforandroid.recipes.kivy import KivyRecipe as _KivyRecipe
 
 class KivyRecipe(_KivyRecipe):
     extra_build_args = ['--no-isolation']
+    # The p4a recipe's default installs Cython 3.0.12 into hostpython3.
+    # But Kivy's pyproject.toml requires cython<=3.0.0 and with --no-isolation
+    # the check uses the CURRENT environment (no install). 3.0.12 > 3.0.0 fails.
+    # Pin to <=3.0.0 so hostpython3 gets exactly 3.0.0, matching pyproject.toml.
+    hostpython_prerequisites = ["cython>=0.29.1,<=3.0.0"]
 
     def prebuild_arch(self, arch):
         super().prebuild_arch(arch)
