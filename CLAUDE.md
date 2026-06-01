@@ -176,8 +176,10 @@ Do not remove this header or the API will return 403.
 **NO pygame SIMD fix.** This project uses Kivy, not pygame. The `custom_recipes/pygame/`
 directory from the playbook is NOT present and NOT needed. Do not add it.
 
-**NDK 25b, not 28c.** The playbook's NDK 28c was required for the pygame SIMD patch.
-Kivy targets NDK 25b. Using 28c for Kivy may introduce linker issues.
+**NDK 28c for both Kivy and pygame.** Initial assumption that Kivy needed 25b was wrong.
+p4a master (2026.05.09) recommends and requires NDK 28c. NDK 28c is already cached at
+`~/.buildozer/android/platform/android-ndk-r28c/` from the retris project. Use 28c for all
+projects on this machine.
 
 **build_dir must be local.** `/home/kakoritz/.weatherapp-build` — NOT on the NAS share.
 buildozer writes thousands of small files; network shares cause extreme slowness and

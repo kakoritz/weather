@@ -15,8 +15,9 @@ fullscreen      = 0
 
 android.minapi      = 24
 android.targetapi   = 34
-# NDK 25b — correct for Kivy (NOT 28c which is pygame-specific per ANDROID_APP_PLAYBOOK.md)
-android.ndk         = 25b
+# NDK 28c — p4a master (2026.05.09) recommends 28c. Already cached from retris.
+# Previous assumption that 25b was Kivy-specific was incorrect for current p4a.
+android.ndk         = 28c
 android.archs       = arm64-v8a
 android.accept_sdk_license = True
 android.permissions = INTERNET,ACCESS_NETWORK_STATE
