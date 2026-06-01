@@ -27,6 +27,8 @@ KV = """
     mode: 'rectangle'
     max_text_length: 5
     input_filter: 'int'
+    input_type: 'number'
+    keyboard_suggestions: False
     font_size: sp(22)
     text_color_normal: 1, 1, 1, 1
     text_color_focus: 1, 1, 1, 1

@@ -291,7 +291,9 @@ class WeatherDetailWidget(FloatLayout):
 class _BottomNavBar(Widget):
     """Bottom navigation: page dots + list button."""
     def __init__(self, carousel: Carousel, on_list: callable, **kwargs):
-        super().__init__(size_hint_y=None, height=dp(52), **kwargs)
+        # Don't hardcode size kwargs here — caller already passes height=dp(52).
+        # Duplicating them causes TypeError: multiple values for keyword argument 'height'.
+        super().__init__(**kwargs)
         self._carousel = carousel
         self._on_list = on_list
         self._num_pages = 0
