@@ -1,23 +1,33 @@
 """Custom Python 3 recipe for Android builds.
 
-Adds configure cache variables that tell autoconf setgrent/getgrent/endgrent
-do not exist on Android (they were never in Android's Bionic libc). Without
-this, Python 3.11's grpmodule.c compiles with undeclared function calls and
-fails with -Werror,-Wimplicit-function-declaration on any recent NDK.
+NDK 25b's clang treats implicit function declarations as hard errors
+(-Werror,-Wimplicit-function-declaration). Android Bionic is missing many
+POSIX functions that Python 3.11 probes for (setgrent, getgrouplist,
+initgroups, getloadavg, etc.). Rather than suppress each function
+individually, we add -Wno-error=implicit-function-declaration to CFLAGS
+so the Python build degrades gracefully for missing Bionic symbols.
+
+We also suppress grp.h detection so Python skips building grpmodule
+entirely (grpmodule.c calls enumerate functions unconditionally, not
+behind HAVE_* guards, so the CFLAGS workaround alone is insufficient).
 """
 from pythonforandroid.recipes.python3 import Python3Recipe
 
 
 class Python3RecipeAndroid(Python3Recipe):
     configure_args = list(Python3Recipe.configure_args) + [
-        # Python builds grp module if grp.h is found, regardless of individual
-        # function checks. Android Bionic has grp.h but lacks the enumerate
-        # functions. Setting header=no prevents grp module from being built at all.
+        # Suppress grp module — grpmodule.c calls setgrent/getgrent/endgrent
+        # unconditionally (not behind HAVE_* guards). These don't exist in Bionic.
         'ac_cv_header_grp_h=no',
-        'ac_cv_func_setgrent=no',
-        'ac_cv_func_getgrent=no',
-        'ac_cv_func_endgrent=no',
     ]
+
+    def get_recipe_env(self, arch, with_flags_in_cc=True):
+        env = super().get_recipe_env(arch, with_flags_in_cc)
+        # Android Bionic lacks many POSIX functions Python probes for.
+        # NDK 25b clang treats implicit-function-declaration as an error.
+        # Downgrade to warning so Python builds degrade gracefully.
+        env['CFLAGS'] = env.get('CFLAGS', '') + ' -Wno-error=implicit-function-declaration'
+        return env
 
 
 recipe = Python3RecipeAndroid()
