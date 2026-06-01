@@ -25,6 +25,8 @@ android.archs       = arm64-v8a
 # _PyLong_AsByteArray gained a 6th arg in 3.14 that Cython 0.29 doesn't generate.
 # Cloned + checked out at /home/kakoritz/.p4a-py311/ — do NOT update this clone.
 p4a.source_dir      = /home/kakoritz/.p4a-py311
+# Patch Python 3.11 to skip grp module (setgrent/getgrent/endgrent not in Android Bionic)
+p4a.local_recipes   = ./custom_recipes
 android.accept_sdk_license = True
 android.permissions = INTERNET,ACCESS_NETWORK_STATE
 
