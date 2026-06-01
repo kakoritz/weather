@@ -425,43 +425,61 @@ def download_backgrounds():
 
 
 def download_weather_icons():
-    """Download official OpenWeatherMap weather icons to assets/icons/.
+    """Download weather icons from Bas Milius weather-icons (MIT license).
 
-    These are the canonical weather icons used worldwide — clean, professional,
-    transparent PNG on dark/light backgrounds. No API key required for CDN access.
+    These are professional icons used by major weather apps.
+    The sun is yellow/white — not the orange of OpenWeatherMap icons.
+    Source: https://github.com/basmilius/weather-icons (MIT)
+    CDN: https://raw.githubusercontent.com/basmilius/weather-icons/dev/production/fill/png/512/
     """
     import urllib.request
     icons_dir = os.path.join(ASSETS_DIR, 'icons')
     os.makedirs(icons_dir, exist_ok=True)
 
-    # Full set of OWM icon codes — day + night variants
-    codes = [
-        '01d', '01n',   # clear sky
-        '02d', '02n',   # few clouds
-        '03d', '03n',   # scattered clouds
-        '04d', '04n',   # broken / overcast clouds
-        '09d', '09n',   # shower rain / drizzle
-        '10d', '10n',   # rain
-        '11d', '11n',   # thunderstorm
-        '13d', '13n',   # snow
-        '50d', '50n',   # mist / fog
-    ]
+    # Map OWM icon code → Bas Milius icon filename
+    # We keep the OWM filename convention so the rest of the app needs no changes
+    BASE = 'https://raw.githubusercontent.com/basmilius/weather-icons/dev/production/fill/png/512/'
+    icon_map = {
+        '01d': 'clear-day.png',
+        '01n': 'clear-night.png',
+        '02d': 'partly-cloudy-day.png',
+        '02n': 'partly-cloudy-night.png',
+        '03d': 'partly-cloudy-day.png',
+        '03n': 'partly-cloudy-night.png',
+        '04d': 'overcast-day.png',
+        '04n': 'overcast-night.png',
+        '09d': 'drizzle.png',
+        '09n': 'drizzle.png',
+        '10d': 'rain.png',
+        '10n': 'rain.png',
+        '11d': 'thunderstorms-rain.png',
+        '11n': 'thunderstorms-rain.png',
+        '13d': 'snow.png',
+        '13n': 'snow.png',
+        '50d': 'fog.png',
+        '50n': 'fog.png',
+    }
 
-    base_url = 'https://openweathermap.org/img/wn/{}@2x.png'
+    headers = {'User-Agent': 'kakoritz-WeatherApp/1.0'}
     downloaded = skipped = failed = 0
 
-    for code in codes:
-        path = os.path.join(icons_dir, f'{code}.png')
-        if os.path.exists(path) and os.path.getsize(path) > 500:
+    for owm_code, bm_file in icon_map.items():
+        path = os.path.join(icons_dir, f'{owm_code}.png')
+        # Force re-download if file is small (old OWM icons are ~1.5KB, Bas Milius are 30-80KB)
+        if os.path.exists(path) and os.path.getsize(path) > 20_000:
             skipped += 1
             continue
-        url = base_url.format(code)
+        url = BASE + bm_file
         try:
-            urllib.request.urlretrieve(url, path)
-            print(f'  Downloaded {code}.png')
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = resp.read()
+            with open(path, 'wb') as f:
+                f.write(data)
+            print(f'  Downloaded {owm_code}.png ({len(data)//1024}KB) ← {bm_file}')
             downloaded += 1
         except Exception as e:
-            print(f'  FAILED {code}: {e}')
+            print(f'  FAILED {owm_code} ({bm_file}): {e}')
             failed += 1
 
     print(f'Icons: {downloaded} downloaded, {skipped} already present, {failed} failed')

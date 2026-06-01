@@ -130,18 +130,21 @@ class WeatherDetailWidget(FloatLayout):
         # Solid sky-blue background for the entire screen (no canvas animations)
         self._draw_sky()
 
-        # Scroll overlay (transparent bg, full size)
+        # Scroll view — flush to top of screen, no overscroll
         self._scroll = ScrollView(
             do_scroll_y=True,
             do_scroll_x=False,
             bar_width=0,
             size_hint=(1, 1),
+            scroll_type=['bars', 'content'],
+            # Prevent rubber-band bounce past the top edge
+            effect_cls='ScrollEffect',
         )
         self._content = BoxLayout(
             orientation='vertical',
             size_hint_y=None,
-            padding=[dp(0), dp(60), dp(0), dp(80)],
-            spacing=dp(14),
+            padding=[dp(0), dp(0), dp(0), dp(80)],  # no top padding — hero is flush to top
+            spacing=dp(0),  # hero has no gap above it; gaps added per-card via padding
         )
         self._content.bind(minimum_height=self._content.setter('height'))
 
@@ -286,7 +289,8 @@ class WeatherDetailWidget(FloatLayout):
         hero.add_widget(text_layer)
         self._content.add_widget(hero)
 
-        # ── Summary text card ────────────────────────
+        # ── Summary text card (dp(12) gap below hero) ────────────────
+        self._content.add_widget(Widget(size_hint_y=None, height=dp(12)))
         summary = self._build_summary_card(w)
         self._content.add_widget(summary)
 
