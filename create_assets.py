@@ -378,6 +378,84 @@ def make_icon():
 
 # ─── main ──────────────────────────────────────────────────────────────────────
 
+def generate_gradient_backgrounds():
+    """Generate iOS Weather-style gradient backgrounds using PIL.
+
+    NOT photos — clean designed gradients exactly like Apple Weather:
+    - Clear day:          bright cerulean sky blue gradient
+    - Clear night:        deep midnight blue with subtle glow
+    - Partly cloudy day:  sky blue, slightly muted
+    - Partly cloudy night:dark blue-indigo
+    - Overcast:           warm steel gray
+    - Fog:                pale silver-blue mist
+    - Drizzle:            muted teal-slate
+    - Rain:               deep ocean blue-gray
+    - Heavy rain:         charcoal-indigo dark
+    - Snow:               cool ice blue
+    - Thunderstorm:       near-black charcoal-purple
+
+    All use the same 3-stop gradient formula so they look like a family.
+    Size: 1080 x 420  (wide hero card format)
+    """
+    W, H = 1080, 420
+    bg_dir = os.path.join(ASSETS_DIR, 'backgrounds')
+    os.makedirs(bg_dir, exist_ok=True)
+
+    # (name, top_rgb, mid_rgb, bottom_rgb)
+    # Colours match iOS Weather's actual palette
+    GRADIENTS = [
+        # ── DAYTIME ──────────────────────────────────────────────────
+        ('clear_day',          (74, 176, 245),  (25, 118, 210),  (13,  71, 161)),
+        ('partly_cloudy_day',  (80, 162, 210),  (40, 108, 170),  (20,  65, 120)),
+        ('overcast',           (110,130,145),   (78,  96,108),   (55,  70, 80)),
+        ('fog',                (176,195,210),   (140,162,178),   (108,130,148)),
+        ('drizzle',            (60, 110,150),   (38,  82,118),   (22,  55, 88)),
+        ('rain',               (30,  62, 95),   (18,  40, 68),   (10,  22, 45)),
+        ('heavy_rain',         (18,  35, 58),   (10,  22, 40),   (5,   12, 28)),
+        ('snow',               (160,200,230),   (110,162,200),   (75, 128,170)),
+        ('thunderstorm',       (20,  15, 35),   (10,   8, 22),   (4,   3, 12)),
+        # ── NIGHTTIME ────────────────────────────────────────────────
+        ('clear_night',        (5,   12, 35),   (10,  22, 60),   (18,  35, 90)),
+        ('partly_cloudy_night',(8,   15, 40),   (14,  28, 65),   (22,  40, 88)),
+    ]
+
+    for name, top, mid, bot in GRADIENTS:
+        img = Image.new('RGB', (W, H))
+        draw = ImageDraw.Draw(img)
+        half = H // 2
+        for y in range(H):
+            if y <= half:
+                t = y / half
+                r = int(top[0] + (mid[0] - top[0]) * t)
+                g = int(top[1] + (mid[1] - top[1]) * t)
+                b = int(top[2] + (mid[2] - top[2]) * t)
+            else:
+                t = (y - half) / half
+                r = int(mid[0] + (bot[0] - mid[0]) * t)
+                g = int(mid[1] + (bot[1] - mid[1]) * t)
+                b = int(mid[2] + (bot[2] - mid[2]) * t)
+            draw.line([(0, y), (W, y)], fill=(r, g, b))
+
+        # Subtle horizon brightness for daytime (warm glow near center-bottom)
+        if 'night' not in name and name not in ('thunderstorm',):
+            ov = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+            od = ImageDraw.Draw(ov)
+            cx = W // 2
+            for radius in range(260, 0, -8):
+                alpha = int(18 * (1 - radius / 260))
+                od.ellipse([cx - radius, H - radius//2,
+                            cx + radius, H + radius//2],
+                           fill=(255, 240, 200, alpha))
+            ov_rgb = ov.filter(ImageFilter.GaussianBlur(radius=30))
+            img = Image.alpha_composite(img.convert('RGBA'), ov_rgb).convert('RGB')
+
+        path = os.path.join(bg_dir, f'{name}.jpg')
+        img.save(path, 'JPEG', quality=96)
+        print(f'  Generated {name}.jpg')
+
+    print(f'Generated {len(GRADIENTS)} gradient backgrounds')
+
+
 def download_backgrounds():
     """Download hi-res weather condition background photos for the hero card.
 
@@ -491,8 +569,8 @@ if __name__ == '__main__':
     make_presplash()
     print()
     print()
-    print('Downloading hi-res weather background photos...')
-    download_backgrounds()
+    print('Generating iOS-style gradient backgrounds...')
+    generate_gradient_backgrounds()
     print()
     print('Downloading official OpenWeatherMap weather icons...')
     download_weather_icons()
