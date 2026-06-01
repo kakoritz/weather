@@ -47,15 +47,42 @@ class _ZipField(MDTextField):
 
 
 class AddLocationScreen(MDScreen):
-    def __init__(self, on_location_added=None, **kwargs):
+    def __init__(self, on_location_added=None, on_cancel=None, **kwargs):
         super().__init__(**kwargs)
         self._on_location_added = on_location_added
+        self._on_cancel = on_cancel
         self._debounce_event = None
         self._pending_location: Location | None = None
         self._build_ui()
 
     def _build_ui(self):
         root = BoxLayout(orientation='vertical', padding=[dp(32), dp(60), dp(32), dp(32)])
+
+        # Cancel button — top-left, only shown if there's something to go back to
+        if self._on_cancel:
+            cancel_btn = MDIconButton(
+                icon='close',
+                theme_icon_color='Custom',
+                icon_color=(1, 1, 1, 0.70),
+                icon_size=dp(26),
+                size_hint=(None, None),
+                size=(dp(44), dp(44)),
+                on_release=lambda *_: self._on_cancel(),
+                pos_hint={'x': 0, 'top': 1},
+            )
+            from kivy.uix.floatlayout import FloatLayout
+            fl = FloatLayout(size_hint=(1, 1))
+            fl.add_widget(cancel_btn)
+            inner = BoxLayout(orientation='vertical', size_hint=(1, 1), padding=[0, dp(50), 0, 0])
+            inner_content = self._build_inner()
+            inner.add_widget(inner_content)
+            fl.add_widget(inner)
+            self.add_widget(fl)
+        else:
+            self.add_widget(self._build_inner())
+
+    def _build_inner(self) -> BoxLayout:
+        root = BoxLayout(orientation='vertical')
 
         # Header
         header = Label(
@@ -107,10 +134,9 @@ class AddLocationScreen(MDScreen):
 
         root.add_widget(Widget(size_hint_y=None, height=dp(20)))
 
-        # Confirm button row
+        # Confirm button
         btn_row = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(50))
         btn_row.add_widget(Widget(size_hint_x=1))
-
         self._confirm_btn = MDIconButton(
             icon='check-circle-outline',
             icon_size=dp(38),
@@ -124,8 +150,7 @@ class AddLocationScreen(MDScreen):
         root.add_widget(btn_row)
 
         root.add_widget(Widget(size_hint_y=1))
-
-        self.add_widget(root)
+        return root
 
     def _on_text_change(self, field, text: str):
         # Cancel pending debounce

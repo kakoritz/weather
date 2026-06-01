@@ -79,3 +79,45 @@ def get_gradients(code: int) -> tuple[tuple, tuple]:
     key = get_condition(code)
     table = NIGHT_GRADIENTS if is_night() else DAY_GRADIENTS
     return table.get(key, DAY_GRADIENTS['clear'])
+
+
+# WMO code → OpenWeatherMap icon base code + whether it has day/night variants
+_OWM_MAP = {
+    0: ('01', True),   # clear sky
+    1: ('01', True),   # mainly clear
+    2: ('02', True),   # partly cloudy
+    3: ('04', False),  # overcast
+    45: ('50', False), # fog
+    48: ('50', False), # icy fog
+    51: ('09', False), # light drizzle
+    53: ('09', False), # drizzle
+    55: ('09', False), # heavy drizzle
+    61: ('10', True),  # light rain
+    63: ('10', True),  # rain
+    65: ('10', True),  # heavy rain
+    71: ('13', False), # light snow
+    73: ('13', False), # snow
+    75: ('13', False), # heavy snow
+    80: ('09', False), # rain showers
+    81: ('10', True),  # rain showers moderate
+    82: ('10', True),  # violent showers
+    85: ('13', False), # snow showers
+    86: ('13', False), # heavy snow showers
+    95: ('11', False), # thunderstorm
+    96: ('11', False), # thunderstorm with hail
+    99: ('11', False), # severe thunderstorm
+}
+
+
+def get_owm_icon(code: int, night: bool = False) -> str:
+    """Return the OpenWeatherMap icon filename (without .png) for a WMO code."""
+    base, has_variant = _OWM_MAP.get(code, ('01', True))
+    suffix = 'n' if (night and has_variant) else 'd'
+    return f'{base}{suffix}'
+
+
+def get_icon_path(code: int, night: bool | None = None) -> str:
+    """Return relative path to the weather icon PNG for this WMO code."""
+    if night is None:
+        night = is_night()
+    return f'assets/icons/{get_owm_icon(code, night)}.png'

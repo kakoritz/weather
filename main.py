@@ -62,15 +62,19 @@ class WeatherApp(MDApp):
             self._request_android_permissions()
 
         self.storage = StorageManager()
-        self.sm = ScreenManager(transition=FadeTransition(duration=0.18))
+        # NoTransition avoids animation crash (ValueError: list.remove) when
+        # screens are removed while MDTextField focus animation is still running.
+        from kivy.uix.screenmanager import NoTransition
+        self.sm = ScreenManager(transition=NoTransition())
 
         locations = self.storage.load_locations()
 
         if not locations:
-            # No saved locations — go straight to add screen
+            # No saved locations — go straight to add screen (no cancel button)
             add_screen = AddLocationScreen(
                 name='add_location',
                 on_location_added=self._on_first_location_added,
+                on_cancel=None,
             )
             self.sm.add_widget(add_screen)
             self.sm.current = 'add_location'
@@ -98,10 +102,11 @@ class WeatherApp(MDApp):
         )
         self.sm.add_widget(list_screen)
 
-        # Add location screen (accessible from list)
+        # Add location screen (accessible from list — has cancel button)
         add_screen = AddLocationScreen(
             name='add_location',
             on_location_added=self._on_location_added,
+            on_cancel=lambda: setattr(self.sm, 'current', 'weather_carousel'),
         )
         self.sm.add_widget(add_screen)
 

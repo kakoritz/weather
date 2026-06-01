@@ -10,8 +10,10 @@ from kivy.uix.label import Label
 from kivy.uix.widget import Widget
 from kivy.clock import Clock
 
+from kivy.uix.image import Image
+
 from src.models.weather import DailyForecast
-from src.utils.wmo_codes import get_condition
+from src.utils.wmo_codes import get_icon_path
 
 KV = """
 <DailyForecastCard>:
@@ -64,8 +66,11 @@ class _DayRow(BoxLayout):
         day_lbl.bind(size=day_lbl.setter('text_size'))
         self.add_widget(day_lbl)
 
-        # Condition icon
-        icon = _DayIcon(wmo_code=f.code, size_hint=(None, 1), width=dp(36))
+        # Condition icon — official OWM PNG
+        icon = Image(
+            source=get_icon_path(f.code, night=False),
+            size_hint=(None, 1), width=dp(36),
+        )
         self.add_widget(icon)
 
         # Precip probability (0 shown as blank)

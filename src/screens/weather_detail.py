@@ -18,6 +18,20 @@ from datetime import datetime
 from kivy.clock import Clock
 from kivy.graphics import Color, Ellipse, Rectangle, RoundedRectangle
 from kivy.lang import Builder
+from kivy.uix.carousel import Carousel as _KivyCarousel
+
+
+class _WeatherCarousel(_KivyCarousel):
+    """Carousel that only intercepts predominantly horizontal swipes.
+    Prevents vertical finger motion from making the screen wobbly/bouncy.
+    """
+    def on_touch_move(self, touch):
+        dx = abs(touch.x - touch.ox)
+        dy = abs(touch.y - touch.oy)
+        # Only grab touch if horizontal movement clearly dominates
+        if dy > dx * 0.75:
+            return False  # Let inner ScrollView handle vertical scrolling
+        return super().on_touch_move(touch)
 from kivy.metrics import dp, sp
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.carousel import Carousel
@@ -396,10 +410,11 @@ class WeatherCarouselScreen(MDScreen):
     def _build_ui(self):
         root = FloatLayout(size_hint=(1, 1))
 
-        self._carousel = Carousel(
+        self._carousel = _WeatherCarousel(
             direction='right',
             loop=False,
             size_hint=(1, 1),
+            scroll_distance=dp(20),
         )
 
         for loc in self._locations:

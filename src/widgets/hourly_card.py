@@ -10,8 +10,10 @@ from kivy.uix.widget import Widget
 from kivy.graphics import Color, Ellipse, Line, Rectangle, RoundedRectangle
 from kivy.clock import Clock
 
+from kivy.uix.image import Image
+
 from src.models.weather import HourlyEntry
-from src.utils.wmo_codes import get_condition
+from src.utils.wmo_codes import get_icon_path, is_night
 
 KV = """
 <HourlyForecastCard>:
@@ -83,7 +85,13 @@ class HourlySlot(BoxLayout):
         )
         self.add_widget(time_lbl)
 
-        icon = _WeatherIconSmall(wmo_code=entry.code, size_hint=(1, None), height=dp(36))
+        try:
+            dt_h = datetime.fromisoformat(entry.time).hour
+            night = dt_h < 6 or dt_h >= 20
+        except Exception:
+            night = False
+        icon_path = get_icon_path(entry.code, night)
+        icon = Image(source=icon_path, size_hint=(1, None), height=dp(36))
         self.add_widget(icon)
 
         # Precip probability (if > 0)

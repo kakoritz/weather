@@ -378,11 +378,56 @@ def make_icon():
 
 # ─── main ──────────────────────────────────────────────────────────────────────
 
+def download_weather_icons():
+    """Download official OpenWeatherMap weather icons to assets/icons/.
+
+    These are the canonical weather icons used worldwide — clean, professional,
+    transparent PNG on dark/light backgrounds. No API key required for CDN access.
+    """
+    import urllib.request
+    icons_dir = os.path.join(ASSETS_DIR, 'icons')
+    os.makedirs(icons_dir, exist_ok=True)
+
+    # Full set of OWM icon codes — day + night variants
+    codes = [
+        '01d', '01n',   # clear sky
+        '02d', '02n',   # few clouds
+        '03d', '03n',   # scattered clouds
+        '04d', '04n',   # broken / overcast clouds
+        '09d', '09n',   # shower rain / drizzle
+        '10d', '10n',   # rain
+        '11d', '11n',   # thunderstorm
+        '13d', '13n',   # snow
+        '50d', '50n',   # mist / fog
+    ]
+
+    base_url = 'https://openweathermap.org/img/wn/{}@2x.png'
+    downloaded = skipped = failed = 0
+
+    for code in codes:
+        path = os.path.join(icons_dir, f'{code}.png')
+        if os.path.exists(path) and os.path.getsize(path) > 500:
+            skipped += 1
+            continue
+        url = base_url.format(code)
+        try:
+            urllib.request.urlretrieve(url, path)
+            print(f'  Downloaded {code}.png')
+            downloaded += 1
+        except Exception as e:
+            print(f'  FAILED {code}: {e}')
+            failed += 1
+
+    print(f'Icons: {downloaded} downloaded, {skipped} already present, {failed} failed')
+
+
 if __name__ == '__main__':
     print('Generating app assets...')
     make_icon()
     make_presplash()
-    print('Done.')
     print()
-    print('To force presplash refresh in next buildozer run:')
+    print('Downloading official OpenWeatherMap weather icons...')
+    download_weather_icons()
+    print()
+    print('Done. To force presplash refresh in next buildozer run:')
     print('  find ~/.weatherapp-build -name "presplash*" -exec rm -f {} \\;')
