@@ -19,56 +19,6 @@ from kivy.clock import Clock
 from kivy.graphics import Color, Ellipse, Rectangle, RoundedRectangle
 from kivy.lang import Builder
 from kivy.uix.carousel import Carousel as _KivyCarousel
-
-
-class _WeatherCarousel(_KivyCarousel):
-    """Carousel that ONLY responds to very intentional horizontal swipes.
-
-    Rules:
-    - Movement must be almost perfectly horizontal (≤ 20° from horizontal)
-    - Minimum 90dp horizontal distance before committing
-    - No bounce/spring at first or last slide
-    """
-    _swipe_locked = False  # True once we've committed to a vertical scroll
-
-    def on_touch_down(self, touch):
-        self._swipe_locked = False
-        return super().on_touch_down(touch)
-
-    def on_touch_move(self, touch):
-        if self._swipe_locked:
-            return False
-
-        dx = touch.x - touch.ox   # signed
-        dy = touch.y - touch.oy   # signed
-        abs_dx = abs(dx)
-        abs_dy = abs(dy)
-
-        # If clearly more vertical than horizontal, lock out the carousel
-        # for the remainder of this touch
-        if abs_dy > abs_dx:
-            self._swipe_locked = True
-            return False
-
-        # Require at least 90dp horizontal AND near-horizontal angle (≤ ~20°)
-        if abs_dx < dp(90):
-            return False
-        if abs_dy > abs_dx * 0.36:   # tan(20°) ≈ 0.36
-            return False
-
-        # Don't try to go past the first or last slide
-        idx = self.index
-        total = len(self.slides)
-        if dx > 0 and idx == 0:
-            return False
-        if dx < 0 and idx == total - 1:
-            return False
-
-        return super().on_touch_move(touch)
-
-    def on_touch_up(self, touch):
-        self._swipe_locked = False
-        return super().on_touch_up(touch)
 from kivy.metrics import dp, sp
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.carousel import Carousel
@@ -96,6 +46,12 @@ KV = """
     name: 'weather_carousel'
 """
 Builder.load_string(KV)
+
+
+class _WeatherCarousel(_KivyCarousel):
+    """Swipe completely disabled — navigation is tap-arrow only."""
+    def on_touch_move(self, touch):
+        return False   # No swipe at all; arrows handle navigation
 
 
 class WeatherDetailWidget(FloatLayout):
@@ -225,38 +181,42 @@ class WeatherDetailWidget(FloatLayout):
         code = w.current.code
         night = is_night()
 
-        # ── Hero card with real background photo ────────────────────
+        # ── Hero card with hi-res background photo ──────────────────
+        # Layout: Image fills card → dark overlay → text on top
         hero = FloatLayout(size_hint_y=None, height=dp(300))
 
-        # Background photo (hi-res, fills the card)
+        # Photo background via canvas.before texture (most reliable on Android)
+        import os
         bg_path = get_bg_path(code, night)
-        try:
-            import os
-            if os.path.exists(bg_path):
-                bg_img = KivyImage(
-                    source=bg_path,
-                    allow_stretch=True,
-                    keep_ratio=False,
-                    size_hint=(1, 1),
-                )
-                hero.add_widget(bg_img)
-        except Exception:
-            pass
+        abs_bg = os.path.join(os.getcwd(), bg_path)
+        if not os.path.exists(abs_bg):
+            abs_bg = None
 
-        # Dark gradient overlay so text is readable
-        with hero.canvas.before:
-            from kivy.graphics import Color as GColor
-            GColor(0, 0, 0, 0.35)
-            _hero_overlay = Rectangle(pos=hero.pos, size=hero.size)
-        hero.bind(
-            pos=lambda w2, v: setattr(_hero_overlay, 'pos', v),
-            size=lambda w2, v: setattr(_hero_overlay, 'size', v),
+        if abs_bg:
+            from kivy.uix.image import Image as _Img
+            bg_img = _Img(source=abs_bg, size_hint=(1, 1), pos_hint={'x': 0, 'y': 0})
+            try:
+                bg_img.fit_mode = 'cover'
+            except Exception:
+                pass
+            hero.add_widget(bg_img)
+
+        # Dark overlay (child widget, renders on top of photo, under text)
+        _ov = Widget(size_hint=(1, 1), pos_hint={'x': 0, 'y': 0})
+        with _ov.canvas:
+            Color(0, 0, 0, 0.42)
+            _ov_rect = Rectangle(pos=_ov.pos, size=_ov.size)
+        _ov.bind(
+            pos=lambda w, v, r=_ov_rect: setattr(r, 'pos', v),
+            size=lambda w, v, r=_ov_rect: setattr(r, 'size', v),
         )
+        hero.add_widget(_ov)
 
-        # Text content centred in the hero
+        # Text layer — topmost child
         text_layer = BoxLayout(
             orientation='vertical',
             size_hint=(1, 1),
+            pos_hint={'x': 0, 'y': 0},
             padding=[dp(16), dp(20)],
             spacing=dp(4),
         )
@@ -517,26 +477,30 @@ class WeatherCarouselScreen(MDScreen):
 
         root.add_widget(self._carousel)
 
-        # ── Left / right swipe arrows ────────────────────────────────
-        # Shown at the top edges — indicate available swipe directions.
+        # ── Tap-arrow navigation (NO SWIPE — explicit buttons only) ──
+        # Arrows are at the top left/right of the hero area.
         n = len(self._locations)
-        self._left_arrow = Label(
-            text='‹',
-            font_size=sp(42),
-            color=(1, 1, 1, 0.55),
+        self._left_arrow = MDIconButton(
+            icon='chevron-left',
+            theme_icon_color='Custom',
+            icon_color=(1, 1, 1, 0.90),
+            icon_size=dp(34),
             size_hint=(None, None),
-            size=(dp(36), dp(60)),
-            pos_hint={'x': 0.01, 'top': 0.97},
-            opacity=0,  # hidden initially; updated on slide change
-        )
-        self._right_arrow = Label(
-            text='›',
-            font_size=sp(42),
-            color=(1, 1, 1, 0.55),
-            size_hint=(None, None),
-            size=(dp(36), dp(60)),
-            pos_hint={'right': 0.99, 'top': 0.97},
+            size=(dp(52), dp(52)),
+            pos_hint={'x': 0, 'top': 0.97},
             opacity=0,
+            on_release=self._go_prev,
+        )
+        self._right_arrow = MDIconButton(
+            icon='chevron-right',
+            theme_icon_color='Custom',
+            icon_color=(1, 1, 1, 0.90),
+            icon_size=dp(34),
+            size_hint=(None, None),
+            size=(dp(52), dp(52)),
+            pos_hint={'right': 1.0, 'top': 0.97},
+            opacity=0,
+            on_release=self._go_next,
         )
         root.add_widget(self._left_arrow)
         root.add_widget(self._right_arrow)
@@ -576,8 +540,18 @@ class WeatherCarouselScreen(MDScreen):
         except Exception:
             idx = 0
         total = len(self._locations)
-        self._left_arrow.opacity = 0.55 if idx > 0 else 0
-        self._right_arrow.opacity = 0.55 if idx < total - 1 else 0
+        self._left_arrow.opacity = 1 if idx > 0 else 0
+        self._right_arrow.opacity = 1 if idx < total - 1 else 0
+        self._left_arrow.disabled = idx == 0
+        self._right_arrow.disabled = idx >= total - 1
+
+    def _go_prev(self, *_):
+        self._carousel.load_previous()
+        self._update_arrows()
+
+    def _go_next(self, *_):
+        self._carousel.load_next()
+        self._update_arrows()
 
     def _load_all_weather(self):
         for i, loc in enumerate(self._locations):
