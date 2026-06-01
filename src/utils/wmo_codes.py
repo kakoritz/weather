@@ -121,3 +121,27 @@ def get_icon_path(code: int, night: bool | None = None) -> str:
     if night is None:
         night = is_night()
     return f'assets/icons/{get_owm_icon(code, night)}.png'
+
+
+# WMO condition → background photo name
+_BG_MAP = {
+    'clear':         ('clear_day', 'clear_night'),
+    'partly_cloudy': ('partly_cloudy_day', 'partly_cloudy_night'),
+    'overcast':      ('overcast', 'overcast'),
+    'fog':           ('fog', 'fog'),
+    'drizzle':       ('drizzle', 'rain'),
+    'rain':          ('rain', 'rain'),
+    'heavy_rain':    ('heavy_rain', 'heavy_rain'),
+    'snow':          ('snow', 'snow'),
+    'thunderstorm':  ('thunderstorm', 'thunderstorm'),
+}
+
+
+def get_bg_path(code: int, night: bool | None = None) -> str:
+    """Return relative path to the hi-res background photo for the hero card."""
+    if night is None:
+        night = is_night()
+    cond = get_condition(code)
+    day_bg, night_bg = _BG_MAP.get(cond, ('clear_day', 'clear_night'))
+    name = night_bg if night else day_bg
+    return f'assets/backgrounds/{name}.jpg'

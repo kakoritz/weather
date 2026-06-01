@@ -378,6 +378,52 @@ def make_icon():
 
 # ─── main ──────────────────────────────────────────────────────────────────────
 
+def download_backgrounds():
+    """Download hi-res weather condition background photos for the hero card.
+
+    Sources: Unsplash CDN (Unsplash License — free for use in apps).
+    Photos are landscape-cropped to 1080×420 for the hero section.
+    """
+    import urllib.request
+    bg_dir = os.path.join(ASSETS_DIR, 'backgrounds')
+    os.makedirs(bg_dir, exist_ok=True)
+
+    photos = {
+        'clear_day':          'https://images.unsplash.com/photo-1601297183305-6df142704ea2?w=1080&h=420&fit=crop&auto=format&q=85',
+        'clear_night':        'https://images.unsplash.com/photo-1475274047050-1d0c0975c63e?w=1080&h=420&fit=crop&auto=format&q=85',
+        'partly_cloudy_day':  'https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=1080&h=420&fit=crop&auto=format&q=85',
+        'partly_cloudy_night':'https://images.unsplash.com/photo-1534003045591-ea0aba5f2a46?w=1080&h=420&fit=crop&auto=format&q=85',
+        'overcast':           'https://images.unsplash.com/photo-1534088568595-a066f410bcda?w=1080&h=420&fit=crop&auto=format&q=85',
+        'fog':                'https://images.unsplash.com/photo-1487621167305-5d248087c724?w=1080&h=420&fit=crop&auto=format&q=85',
+        'drizzle':            'https://images.unsplash.com/photo-1428592953211-077101b2021b?w=1080&h=420&fit=crop&auto=format&q=85',
+        'rain':               'https://images.unsplash.com/photo-1501999635878-71cb5379c2d8?w=1080&h=420&fit=crop&auto=format&q=85',
+        'heavy_rain':         'https://images.unsplash.com/photo-1519692933481-e162a57d6721?w=1080&h=420&fit=crop&auto=format&q=85',
+        'snow':               'https://images.unsplash.com/photo-1491002052546-bf38f186af56?w=1080&h=420&fit=crop&auto=format&q=85',
+        'thunderstorm':       'https://images.unsplash.com/photo-1605727216801-e27ce1d0cc28?w=1080&h=420&fit=crop&auto=format&q=85',
+    }
+
+    headers = {'User-Agent': 'kakoritz-WeatherApp/1.0'}
+    downloaded = skipped = failed = 0
+
+    for name, url in photos.items():
+        path = os.path.join(bg_dir, f'{name}.jpg')
+        if os.path.exists(path) and os.path.getsize(path) > 10_000:
+            skipped += 1
+            continue
+        try:
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                with open(path, 'wb') as f:
+                    f.write(resp.read())
+            print(f'  Downloaded {name}.jpg ({os.path.getsize(path)//1024}KB)')
+            downloaded += 1
+        except Exception as e:
+            print(f'  FAILED {name}: {e}')
+            failed += 1
+
+    print(f'Backgrounds: {downloaded} downloaded, {skipped} already present, {failed} failed')
+
+
 def download_weather_icons():
     """Download official OpenWeatherMap weather icons to assets/icons/.
 
@@ -425,6 +471,10 @@ if __name__ == '__main__':
     print('Generating app assets...')
     make_icon()
     make_presplash()
+    print()
+    print()
+    print('Downloading hi-res weather background photos...')
+    download_backgrounds()
     print()
     print('Downloading official OpenWeatherMap weather icons...')
     download_weather_icons()

@@ -22,16 +22,53 @@ from kivy.uix.carousel import Carousel as _KivyCarousel
 
 
 class _WeatherCarousel(_KivyCarousel):
-    """Carousel that only intercepts predominantly horizontal swipes.
-    Prevents vertical finger motion from making the screen wobbly/bouncy.
+    """Carousel that ONLY responds to very intentional horizontal swipes.
+
+    Rules:
+    - Movement must be almost perfectly horizontal (≤ 20° from horizontal)
+    - Minimum 90dp horizontal distance before committing
+    - No bounce/spring at first or last slide
     """
+    _swipe_locked = False  # True once we've committed to a vertical scroll
+
+    def on_touch_down(self, touch):
+        self._swipe_locked = False
+        return super().on_touch_down(touch)
+
     def on_touch_move(self, touch):
-        dx = abs(touch.x - touch.ox)
-        dy = abs(touch.y - touch.oy)
-        # Only grab touch if horizontal movement clearly dominates
-        if dy > dx * 0.75:
-            return False  # Let inner ScrollView handle vertical scrolling
+        if self._swipe_locked:
+            return False
+
+        dx = touch.x - touch.ox   # signed
+        dy = touch.y - touch.oy   # signed
+        abs_dx = abs(dx)
+        abs_dy = abs(dy)
+
+        # If clearly more vertical than horizontal, lock out the carousel
+        # for the remainder of this touch
+        if abs_dy > abs_dx:
+            self._swipe_locked = True
+            return False
+
+        # Require at least 90dp horizontal AND near-horizontal angle (≤ ~20°)
+        if abs_dx < dp(90):
+            return False
+        if abs_dy > abs_dx * 0.36:   # tan(20°) ≈ 0.36
+            return False
+
+        # Don't try to go past the first or last slide
+        idx = self.index
+        total = len(self.slides)
+        if dx > 0 and idx == 0:
+            return False
+        if dx < 0 and idx == total - 1:
+            return False
+
         return super().on_touch_move(touch)
+
+    def on_touch_up(self, touch):
+        self._swipe_locked = False
+        return super().on_touch_up(touch)
 from kivy.metrics import dp, sp
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.carousel import Carousel
@@ -45,11 +82,14 @@ from kivymd.uix.screen import MDScreen
 from src.api.weather import fetch_weather
 from src.models.location import Location
 from src.models.weather import WeatherData, wind_direction_label
-from src.utils.wmo_codes import get_label, get_condition
-from src.widgets.weather_bg import WeatherBackground
+from src.utils.wmo_codes import get_label, get_condition, get_bg_path, get_icon_path, is_night
 from src.widgets.hourly_card import HourlyForecastCard
 from src.widgets.daily_forecast import DailyForecastCard
 from src.widgets.detail_cards import DetailCardsGrid
+
+# Day sky blue — the universal daytime background under all conditions
+_DAY_SKY = (0.22, 0.60, 0.86, 1)
+_NIGHT_SKY = (0.06, 0.10, 0.22, 1)
 
 KV = """
 <WeatherCarouselScreen>:
@@ -65,20 +105,32 @@ class WeatherDetailWidget(FloatLayout):
         super().__init__(**kwargs)
         self._location = location
         self._weather = weather
-        self._bg: WeatherBackground | None = None
         self._scroll: ScrollView | None = None
         self._content: BoxLayout | None = None
-        self._bind_done = False
+        self._sky_rect = None  # The solid sky-blue background rectangle
 
-        # Build immediately with whatever data we have (may be loading state)
         Clock.schedule_once(self._build, 0)
+
+    def _draw_sky(self):
+        """Draw or update the sky-blue solid background rectangle."""
+        self.canvas.before.clear()
+        night = is_night()
+        col = _NIGHT_SKY if night else _DAY_SKY
+        with self.canvas.before:
+            Color(*col)
+            self._sky_rect = Rectangle(pos=self.pos, size=self.size)
+        self.bind(pos=self._update_sky, size=self._update_sky)
+
+    def _update_sky(self, *_):
+        if self._sky_rect:
+            self._sky_rect.pos = self.pos
+            self._sky_rect.size = self.size
 
     def show_error(self, msg: str, retry_fn=None):
         """Replace loading state with a tap-to-retry error screen."""
         self._weather = None
         self.clear_widgets()
-        self._bg = WeatherBackground(wmo_code=0, size_hint=(1, 1))
-        self.add_widget(self._bg)
+        self._draw_sky()
         content = BoxLayout(orientation='vertical', size_hint=(1, 1), padding=[dp(32), dp(80)])
         content.add_widget(Label(
             text=self._location.city,
@@ -103,8 +155,7 @@ class WeatherDetailWidget(FloatLayout):
 
     def _add_loading_state_fresh(self):
         self.clear_widgets()
-        self._bg = WeatherBackground(wmo_code=0, size_hint=(1, 1))
-        self.add_widget(self._bg)
+        self._sky_rect = None
         self._scroll = None
         self._content = None
         Clock.schedule_once(self._build, 0)
@@ -112,7 +163,7 @@ class WeatherDetailWidget(FloatLayout):
     def update_weather(self, weather: WeatherData):
         self._weather = weather
         self.clear_widgets()
-        self._bg = None
+        self._sky_rect = None
         self._scroll = None
         self._content = None
         Clock.schedule_once(self._build, 0)
@@ -120,10 +171,8 @@ class WeatherDetailWidget(FloatLayout):
     def _build(self, *_):
         w = self._weather
 
-        # Animated background (fills full widget)
-        code = w.current.code if w else 0
-        self._bg = WeatherBackground(wmo_code=code, size_hint=(1, 1))
-        self.add_widget(self._bg)
+        # Solid sky-blue background for the entire screen (no canvas animations)
+        self._draw_sky()
 
         # Scroll overlay (transparent bg, full size)
         self._scroll = ScrollView(
@@ -171,68 +220,110 @@ class WeatherDetailWidget(FloatLayout):
         ))
 
     def _add_weather_content(self, w: WeatherData):
+        from kivy.uix.image import Image as KivyImage
         today = w.daily[0] if w.daily else None
         code = w.current.code
+        night = is_night()
 
-        # ── Hero section ────────────────────────────
-        hero = BoxLayout(
+        # ── Hero card with real background photo ────────────────────
+        hero = FloatLayout(size_hint_y=None, height=dp(300))
+
+        # Background photo (hi-res, fills the card)
+        bg_path = get_bg_path(code, night)
+        try:
+            import os
+            if os.path.exists(bg_path):
+                bg_img = KivyImage(
+                    source=bg_path,
+                    allow_stretch=True,
+                    keep_ratio=False,
+                    size_hint=(1, 1),
+                )
+                hero.add_widget(bg_img)
+        except Exception:
+            pass
+
+        # Dark gradient overlay so text is readable
+        with hero.canvas.before:
+            from kivy.graphics import Color as GColor
+            GColor(0, 0, 0, 0.35)
+            _hero_overlay = Rectangle(pos=hero.pos, size=hero.size)
+        hero.bind(
+            pos=lambda w2, v: setattr(_hero_overlay, 'pos', v),
+            size=lambda w2, v: setattr(_hero_overlay, 'size', v),
+        )
+
+        # Text content centred in the hero
+        text_layer = BoxLayout(
             orientation='vertical',
-            size_hint_y=None,
-            height=dp(230),
-            padding=[dp(16), dp(20), dp(16), 0],
+            size_hint=(1, 1),
+            padding=[dp(16), dp(20)],
+            spacing=dp(4),
         )
 
         city_lbl = Label(
             text=self._location.display_name,
-            font_size=sp(34),
+            font_size=sp(30),
             bold=True,
-            color=(1, 1, 1, 0.97),
+            color=(1, 1, 1, 1),
             size_hint_y=None,
-            height=dp(44),
+            height=dp(40),
             halign='center',
             valign='middle',
         )
         city_lbl.bind(size=city_lbl.setter('text_size'))
-        hero.add_widget(city_lbl)
+        text_layer.add_widget(city_lbl)
 
         temp_lbl = Label(
             text=f'{w.current.temp}°',
-            font_size=sp(88),
+            font_size=sp(90),
             bold=False,
-            color=(1, 1, 1, 0.97),
+            color=(1, 1, 1, 1),
             size_hint_y=None,
-            height=dp(100),
+            height=dp(108),
             halign='center',
             valign='middle',
         )
         temp_lbl.bind(size=temp_lbl.setter('text_size'))
-        hero.add_widget(temp_lbl)
+        text_layer.add_widget(temp_lbl)
 
+        # Condition icon + label side by side
+        cond_row = BoxLayout(orientation='horizontal', size_hint_y=None,
+                             height=dp(36), spacing=dp(8))
+        cond_row.add_widget(Widget(size_hint_x=1))
+        icon_img = KivyImage(
+            source=get_icon_path(code, night),
+            size_hint=(None, None), size=(dp(36), dp(36)),
+        )
+        cond_row.add_widget(icon_img)
         cond_lbl = Label(
             text=get_label(code),
             font_size=sp(20),
-            color=(1, 1, 1, 0.85),
+            color=(1, 1, 1, 0.95),
             size_hint_y=None,
-            height=dp(28),
-            halign='center',
+            height=dp(36),
+            halign='left',
             valign='middle',
         )
         cond_lbl.bind(size=cond_lbl.setter('text_size'))
-        hero.add_widget(cond_lbl)
+        cond_row.add_widget(cond_lbl)
+        cond_row.add_widget(Widget(size_hint_x=1))
+        text_layer.add_widget(cond_row)
 
         if today:
             hl_lbl = Label(
                 text=f'H:{today.max_temp}°   L:{today.min_temp}°',
-                font_size=sp(18),
-                color=(1, 1, 1, 0.78),
+                font_size=sp(17),
+                color=(1, 1, 1, 0.85),
                 size_hint_y=None,
-                height=dp(26),
+                height=dp(24),
                 halign='center',
                 valign='middle',
             )
             hl_lbl.bind(size=hl_lbl.setter('text_size'))
-            hero.add_widget(hl_lbl)
+            text_layer.add_widget(hl_lbl)
 
+        hero.add_widget(text_layer)
         self._content.add_widget(hero)
 
         # ── Summary text card ────────────────────────
@@ -386,14 +477,14 @@ class _BottomNavBar(Widget):
         start_x = cx - total_w / 2
 
         for i in range(self._num_pages):
+            x = start_x + i * spacing
             if i == idx:
                 self._dots_group.add(Color(1, 1, 1, 0.92))
                 r = dot_r
             else:
                 self._dots_group.add(Color(1, 1, 1, 0.40))
                 r = dot_r * 0.75
-                x = start_x + i * spacing
-                self._dots_group.add(Ellipse(pos=(x - r, cy - r), size=(r*2, r*2)))
+            self._dots_group.add(Ellipse(pos=(x - r, cy - r), size=(r*2, r*2)))
 
 
 class WeatherCarouselScreen(MDScreen):
@@ -426,7 +517,34 @@ class WeatherCarouselScreen(MDScreen):
 
         root.add_widget(self._carousel)
 
-        # Bottom nav bar
+        # ── Left / right swipe arrows ────────────────────────────────
+        # Shown at the top edges — indicate available swipe directions.
+        n = len(self._locations)
+        self._left_arrow = Label(
+            text='‹',
+            font_size=sp(42),
+            color=(1, 1, 1, 0.55),
+            size_hint=(None, None),
+            size=(dp(36), dp(60)),
+            pos_hint={'x': 0.01, 'top': 0.97},
+            opacity=0,  # hidden initially; updated on slide change
+        )
+        self._right_arrow = Label(
+            text='›',
+            font_size=sp(42),
+            color=(1, 1, 1, 0.55),
+            size_hint=(None, None),
+            size=(dp(36), dp(60)),
+            pos_hint={'right': 0.99, 'top': 0.97},
+            opacity=0,
+        )
+        root.add_widget(self._left_arrow)
+        root.add_widget(self._right_arrow)
+        if n > 1:
+            self._carousel.bind(current_slide=self._update_arrows)
+            self._update_arrows()
+
+        # ── Bottom nav bar ────────────────────────────────────────────
         self._nav_bar = _BottomNavBar(
             carousel=self._carousel,
             on_list=self._go_to_list,
@@ -434,7 +552,7 @@ class WeatherCarouselScreen(MDScreen):
             size_hint=(1, None),
             height=dp(52),
         )
-        self._nav_bar.set_num_pages(len(self._locations))
+        self._nav_bar.set_num_pages(n)
         root.add_widget(self._nav_bar)
 
         # List icon (bottom right)
@@ -451,6 +569,15 @@ class WeatherCarouselScreen(MDScreen):
         root.add_widget(list_btn)
 
         self.add_widget(root)
+
+    def _update_arrows(self, *_):
+        try:
+            idx = self._carousel.index
+        except Exception:
+            idx = 0
+        total = len(self._locations)
+        self._left_arrow.opacity = 0.55 if idx > 0 else 0
+        self._right_arrow.opacity = 0.55 if idx < total - 1 else 0
 
     def _load_all_weather(self):
         for i, loc in enumerate(self._locations):
