@@ -341,16 +341,19 @@ class WeatherDetailWidget(FloatLayout):
 class _BottomNavBar(Widget):
     """Bottom navigation: page dots + list button."""
     def __init__(self, carousel: Carousel, on_list: callable, **kwargs):
-        # Don't hardcode size kwargs here — caller already passes height=dp(52).
-        # Duplicating them causes TypeError: multiple values for keyword argument 'height'.
         super().__init__(**kwargs)
         self._carousel = carousel
         self._on_list = on_list
         self._num_pages = 0
 
+        from kivy.graphics import InstructionGroup
         with self.canvas.before:
             Color(0, 0, 0, 0.38)
             self._bg = Rectangle(pos=self.pos, size=self.size)
+        # Dedicated group for dots so we can clear it atomically (no list.remove crash)
+        self._dots_group = InstructionGroup()
+        self.canvas.add(self._dots_group)
+
         self.bind(pos=self._redraw_bg, size=self._redraw_bg)
         carousel.bind(current_slide=self._redraw_dots)
 
@@ -364,9 +367,8 @@ class _BottomNavBar(Widget):
         self._redraw_dots()
 
     def _redraw_dots(self, *_):
-        # Remove old dot canvas instructions (keep bg)
-        for child in list(self.canvas.children[2:]):
-            self.canvas.remove(child)
+        # Clear the dots group atomically — no per-instruction remove calls
+        self._dots_group.clear()
 
         if self._num_pages < 2:
             return
@@ -383,16 +385,15 @@ class _BottomNavBar(Widget):
         total_w = (self._num_pages - 1) * spacing
         start_x = cx - total_w / 2
 
-        with self.canvas:
-            for i in range(self._num_pages):
-                if i == idx:
-                    Color(1, 1, 1, 0.92)
-                    r = dot_r
-                else:
-                    Color(1, 1, 1, 0.40)
-                    r = dot_r * 0.75
+        for i in range(self._num_pages):
+            if i == idx:
+                self._dots_group.add(Color(1, 1, 1, 0.92))
+                r = dot_r
+            else:
+                self._dots_group.add(Color(1, 1, 1, 0.40))
+                r = dot_r * 0.75
                 x = start_x + i * spacing
-                Ellipse(pos=(x - r, cy - r), size=(r*2, r*2))
+                self._dots_group.add(Ellipse(pos=(x - r, cy - r), size=(r*2, r*2)))
 
 
 class WeatherCarouselScreen(MDScreen):

@@ -23,6 +23,17 @@ try:
     # Keep console logging ON so errors appear in logcat
     # os.environ.setdefault('KIVY_NO_CONSOLELOG', '1')
 
+    # KivyMD 1.2.0 has a bug where animations are double-stopped, raising
+    # ValueError: list.remove(x). Patch Animation.stop to suppress this.
+    from kivy.animation import Animation as _Anim
+    _orig_stop = _Anim.stop
+    def _safe_stop(self, widget):
+        try:
+            _orig_stop(self, widget)
+        except (ValueError, Exception):
+            pass
+    _Anim.stop = _safe_stop
+
     from kivy.config import Config
     Config.set('kivy', 'exit_on_escape', '0')
     Config.set('graphics', 'resizable', '0')
