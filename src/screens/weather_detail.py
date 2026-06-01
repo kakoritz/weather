@@ -33,6 +33,7 @@ from src.api.weather import fetch_weather
 from src.models.location import Location
 from src.models.weather import WeatherData, wind_direction_label
 from src.utils.wmo_codes import get_label, get_condition, get_bg_path, get_icon_path, is_night
+from src.widgets.weather_overlay import WeatherOverlay, overlay_for_night
 from src.widgets.hourly_card import HourlyForecastCard
 from src.widgets.daily_forecast import DailyForecastCard
 from src.widgets.detail_cards import DetailCardsGrid
@@ -245,6 +246,16 @@ class WeatherDetailWidget(FloatLayout):
             size=lambda w, v, r=_ov_rect: setattr(r, 'size', v),
         )
         hero.add_widget(_ov)
+
+        # Weather particle overlay — between dark overlay and text
+        ov_type = overlay_for_night(get_condition(code), night)
+        if ov_type != 'none':
+            wx_overlay = WeatherOverlay(
+                overlay_type=ov_type,
+                size_hint=(1, 1),
+                pos_hint={'x': 0, 'y': 0},
+            )
+            hero.add_widget(wx_overlay)
 
         # Text layer — topmost child
         text_layer = BoxLayout(

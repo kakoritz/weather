@@ -20,7 +20,8 @@ from kivy.graphics import Color, Rectangle, RoundedRectangle
 from kivymd.uix.button import MDIconButton, MDRaisedButton
 from kivymd.uix.screen import MDScreen
 
-from src.utils.wmo_codes import get_bg_path
+from src.utils.wmo_codes import get_bg_path, get_condition
+from src.widgets.weather_overlay import WeatherOverlay, overlay_for_night
 
 KV = """
 <BgReviewScreen>:
@@ -115,6 +116,8 @@ class BgReviewScreen(MDScreen):
             card = _ConditionCard(
                 label=label,
                 img_path=abs_path if os.path.exists(abs_path) else None,
+                wmo_code=wmo_code,
+                night=night,
                 size_hint_y=None,
                 height=dp(200),
             )
@@ -126,10 +129,11 @@ class BgReviewScreen(MDScreen):
 
 
 class _ConditionCard(FloatLayout):
-    def __init__(self, label: str, img_path: str | None, **kwargs):
+    def __init__(self, label: str, img_path: str | None,
+                 wmo_code: int = 0, night: bool = False, **kwargs):
         super().__init__(**kwargs)
 
-        # Background photo (or dark placeholder if missing)
+        # 1 — gradient background
         if img_path:
             bg = KivyImage(source=img_path, size_hint=(1, 1),
                            pos_hint={'x': 0, 'y': 0})
@@ -141,16 +145,24 @@ class _ConditionCard(FloatLayout):
                 Color(0.15, 0.20, 0.28, 1)
                 Rectangle(pos=self.pos, size=self.size)
 
-        # Dark overlay for legibility
+        # 2 — very light dark overlay so text stays readable
         ov = Widget(size_hint=(1, 1), pos_hint={'x': 0, 'y': 0})
         with ov.canvas:
-            Color(0, 0, 0, 0.45)
+            Color(0, 0, 0, 0.32)
             _ov = Rectangle(pos=ov.pos, size=ov.size)
         ov.bind(pos=lambda w, v, r=_ov: setattr(r, 'pos', v),
                 size=lambda w, v, r=_ov: setattr(r, 'size', v))
         self.add_widget(ov)
 
-        # Condition label
+        # 3 — animated weather particle overlay
+        cond = get_condition(wmo_code)
+        ov_type = overlay_for_night(cond, night)
+        overlay = WeatherOverlay(overlay_type=ov_type,
+                                 size_hint=(1, 1),
+                                 pos_hint={'x': 0, 'y': 0})
+        self.add_widget(overlay)
+
+        # 4 — condition label (top-left)
         lbl = Label(
             text=label,
             font_size=sp(20), bold=True, color=(1, 1, 1, 1),
@@ -162,24 +174,13 @@ class _ConditionCard(FloatLayout):
         lbl.bind(size=lbl.setter('text_size'))
         self.add_widget(lbl)
 
-        # File name tag (bottom right for reference)
-        if img_path:
-            fname = os.path.basename(img_path)
-            tag = Label(
-                text=fname,
-                font_size=sp(10), color=(1, 1, 1, 0.45),
-                size_hint=(None, None), height=dp(18), width=dp(200),
-                pos_hint={'right': 0.99, 'y': 0.02},
-                halign='right', valign='bottom',
-            )
-            tag.bind(size=tag.setter('text_size'))
-            self.add_widget(tag)
-        else:
-            lbl2 = Label(
-                text='⚠ image not found',
-                font_size=sp(13), color=(1, 0.5, 0.3, 1),
-                size_hint=(1, None), height=dp(24),
-                pos_hint={'x': 0, 'y': 0.05},
-                halign='center', valign='middle',
-            )
-            self.add_widget(lbl2)
+        # Overlay-type tag (bottom right for reference)
+        tag = Label(
+            text=f'overlay: {ov_type}',
+            font_size=sp(10), color=(1, 1, 1, 0.40),
+            size_hint=(None, None), height=dp(18), width=dp(200),
+            pos_hint={'right': 0.99, 'y': 0.02},
+            halign='right', valign='bottom',
+        )
+        tag.bind(size=tag.setter('text_size'))
+        self.add_widget(tag)
