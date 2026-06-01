@@ -30,8 +30,9 @@ p4a.local_recipes   = ./custom_recipes
 android.accept_sdk_license = True
 android.permissions = INTERNET,ACCESS_NETWORK_STATE
 
-android.icon.filename     = %(source.dir)s/assets/icon.png
-android.presplash.filename = %(source.dir)s/assets/presplash.jpg
+# NOTE: buildozer reads 'icon.filename' and 'presplash.filename' (NOT android.* prefix)
+icon.filename             = %(source.dir)s/assets/icon.png
+presplash.filename        = %(source.dir)s/assets/presplash.jpg
 
 # Local build dir — NOT on NAS, must be a local path with no spaces
 # Thousands of small file writes; network share causes SIGBUS and extreme slowness
