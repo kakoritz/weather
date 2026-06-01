@@ -17,7 +17,9 @@ class KivyRecipe(_KivyRecipe):
     # But Kivy's pyproject.toml requires cython<=3.0.0 and with --no-isolation
     # the check uses the CURRENT environment (no install). 3.0.12 > 3.0.0 fails.
     # Pin to <=3.0.0 so hostpython3 gets exactly 3.0.0, matching pyproject.toml.
-    hostpython_prerequisites = ["cython>=0.29.1,<=3.0.0"]
+    # Match all packages in Kivy's pyproject.toml [build-system] requires.
+    # --no-isolation checks the current env; all must be pre-installed.
+    hostpython_prerequisites = ["cython>=0.29.1,<=3.0.0", "wheel", "setuptools", "packaging"]
 
     def prebuild_arch(self, arch):
         super().prebuild_arch(arch)
