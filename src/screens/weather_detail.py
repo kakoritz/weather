@@ -590,7 +590,7 @@ class WeatherCarouselScreen(MDScreen):
         self._nav_bar.set_num_pages(n)
         root.add_widget(self._nav_bar)
 
-        # List icon (bottom right)
+        # List icon (bottom right, above nav bar)
         list_btn = MDIconButton(
             icon='format-list-bulleted',
             theme_icon_color='Custom',
@@ -603,7 +603,29 @@ class WeatherCarouselScreen(MDScreen):
         )
         root.add_widget(list_btn)
 
+        # ── Debug: background review button (temp, bottom-right) ──────
+        debug_btn = MDIconButton(
+            icon='image-search',
+            theme_icon_color='Custom',
+            icon_color=(1, 0.85, 0.2, 0.85),
+            icon_size=dp(20),
+            size_hint=(None, None),
+            size=(dp(38), dp(38)),
+            pos_hint={'right': 0.99, 'top': 0.14},
+            on_release=self._open_bg_review,
+        )
+        root.add_widget(debug_btn)
+
         self.add_widget(root)
+
+    def _open_bg_review(self, *_):
+        from src.screens.bg_review import BgReviewScreen
+        if not self.manager.has_screen('bg_review'):
+            self.manager.add_widget(BgReviewScreen(
+                name='bg_review',
+                on_close=lambda: setattr(self.manager, 'current', 'weather_carousel'),
+            ))
+        self.manager.current = 'bg_review'
 
     def _update_arrows(self, *_):
         try:
