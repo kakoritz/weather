@@ -33,11 +33,12 @@ KV = """
 Builder.load_string(KV)
 
 
-class _LocationCard(FloatLayout):
-    """Location card with hi-res weather background + swipe-left to delete.
+class _LocationCard(BoxLayout):
+    """Location card using a horizontal ScrollView for swipe-to-delete.
 
-    Swipe left ≥ 60dp → red Delete button revealed.
-    Tap (no swipe) → navigates to that location.
+    The card content is full-width. Swiping left reveals a red Delete button
+    that's the same height. Snaps to open (50/50) or closed. Tap on content
+    navigates; tap on Delete button removes the location.
     """
 
     def __init__(self, location: Location, weather: WeatherData | None,
@@ -46,11 +47,28 @@ class _LocationCard(FloatLayout):
         self._location = location
         self._on_tap = on_tap
         self._on_delete = on_delete
-        self._swiped = False
-        self._tx = None   # touch start x
-        self._ty = None   # touch start y
+        self._touch_start = None
 
-        # ── Background photo ────────────────────────────────────────
+        # Horizontal scroll reveals Delete button to the right
+        scroll = ScrollView(
+            do_scroll_x=True,
+            do_scroll_y=False,
+            bar_width=0,
+            scroll_x=0,
+            effect_cls='ScrollEffect',
+            size_hint=(1, 1),
+        )
+        # Container: [full-width content] [delete button _DEL_W]
+        self._container = BoxLayout(
+            orientation='horizontal',
+            size_hint=(None, 1),
+        )
+
+        # ── Content card ──────────────────────────────────────────
+        self._content_card = FloatLayout(size_hint=(None, 1))
+        self.bind(width=self._on_width)  # set widths once we know our own
+
+        # Background photo
         night = is_night()
         code = weather.current.code if weather else 0
         abs_bg = os.path.join(os.getcwd(), get_bg_path(code, night))
@@ -59,58 +77,29 @@ class _LocationCard(FloatLayout):
                            pos_hint={'x': 0, 'y': 0})
             try: bg.fit_mode = 'cover'
             except: pass
-            self.add_widget(bg)
+            self._content_card.add_widget(bg)
 
-        # Dark overlay
         ov = Widget(size_hint=(1, 1), pos_hint={'x': 0, 'y': 0})
         with ov.canvas:
             Color(0, 0, 0, 0.38)
             _ov = Rectangle(pos=ov.pos, size=ov.size)
         ov.bind(pos=lambda w, v, r=_ov: setattr(r, 'pos', v),
                 size=lambda w, v, r=_ov: setattr(r, 'size', v))
-        self.add_widget(ov)
+        self._content_card.add_widget(ov)
 
-        # ── Delete zone (always present, revealed by sliding _main) ─
-        del_zone = Widget(size_hint=(None, 1), width=_DEL_W,
-                          pos_hint={'right': 1, 'y': 0})
-        with del_zone.canvas:
-            Color(0.90, 0.15, 0.15, 1)
-            _dz = Rectangle(pos=del_zone.pos, size=del_zone.size)
-        del_zone.bind(pos=lambda w, v, r=_dz: setattr(r, 'pos', v),
-                      size=lambda w, v, r=_dz: setattr(r, 'size', v))
-        del_lbl = Label(text='Delete', font_size=sp(13), bold=True,
-                        color=(1, 1, 1, 1), size_hint=(1, 1))
-        del_zone.add_widget(del_lbl)
-        del_zone.bind(on_touch_down=self._on_delete_tap)
-        self.add_widget(del_zone)
-
-        # ── Main content (slides to reveal delete zone) ──────────────
-        self._main = BoxLayout(
-            orientation='horizontal',
-            size_hint=(1, 1),
-            pos_hint={'x': 0, 'y': 0},
-            padding=[dp(16), dp(12)],
-            spacing=dp(12),
-        )
-
+        inner = BoxLayout(orientation='horizontal', size_hint=(1, 1),
+                          pos_hint={'x': 0, 'y': 0},
+                          padding=[dp(16), dp(12)], spacing=dp(12))
         left = BoxLayout(orientation='vertical', size_hint=(1, 1))
         from datetime import datetime
-        time_lbl = Label(
-            text=datetime.now().strftime('%I:%M %p').lstrip('0'),
-            font_size=sp(12), color=(1, 1, 1, 0.65),
-            size_hint_y=None, height=dp(16), halign='left', valign='middle',
-        )
-        time_lbl.bind(size=time_lbl.setter('text_size'))
-        left.add_widget(time_lbl)
-
-        city_lbl = Label(
-            text=location.city, font_size=sp(22), bold=True,
-            color=(1, 1, 1, 1), size_hint_y=None, height=dp(28),
-            halign='left', valign='middle',
-        )
-        city_lbl.bind(size=city_lbl.setter('text_size'))
-        left.add_widget(city_lbl)
-
+        for txt, sz, bold, alpha, h in [
+            (datetime.now().strftime('%I:%M %p').lstrip('0'), sp(12), False, 0.65, dp(16)),
+            (location.city, sp(22), True, 1.0, dp(28)),
+        ]:
+            lbl = Label(text=txt, font_size=sz, bold=bold, color=(1, 1, 1, alpha),
+                        size_hint_y=None, height=h, halign='left', valign='middle')
+            lbl.bind(size=lbl.setter('text_size'))
+            left.add_widget(lbl)
         if weather:
             for txt, sz, alpha, h in [
                 (get_label(weather.current.code), sp(14), 0.80, dp(20)),
@@ -120,64 +109,60 @@ class _LocationCard(FloatLayout):
                             size_hint_y=None, height=h, halign='left', valign='middle')
                 lbl.bind(size=lbl.setter('text_size'))
                 left.add_widget(lbl)
-
-        self._main.add_widget(left)
-
+        inner.add_widget(left)
         if weather:
-            temp_lbl = Label(
-                text=f'{weather.current.temp}°', font_size=sp(44),
-                color=(1, 1, 1, 1), size_hint=(None, 1), width=dp(80),
-                halign='right', valign='middle',
-            )
-            temp_lbl.bind(size=temp_lbl.setter('text_size'))
-            self._main.add_widget(temp_lbl)
+            t = Label(text=f'{weather.current.temp}°', font_size=sp(44),
+                      color=(1, 1, 1, 1), size_hint=(None, 1), width=dp(80),
+                      halign='right', valign='middle')
+            t.bind(size=t.setter('text_size'))
+            inner.add_widget(t)
+        self._content_card.add_widget(inner)
 
-        self.add_widget(self._main)
+        # Touch on content → tap or start swipe
+        inner.bind(on_touch_down=self._content_touch_down)
+        inner.bind(on_touch_up=self._content_touch_up)
+        self._container.add_widget(self._content_card)
 
-    def on_touch_down(self, touch):
-        if self.collide_point(*touch.pos):
-            self._tx, self._ty = touch.x, touch.y
-            touch.grab(self)
-            return True
+        # ── Delete button ─────────────────────────────────────────
+        del_btn = FloatLayout(size_hint=(None, 1), width=_DEL_W)
+        with del_btn.canvas.before:
+            Color(0.92, 0.18, 0.18, 1)
+            _db = Rectangle(pos=del_btn.pos, size=del_btn.size)
+        del_btn.bind(pos=lambda w, v, r=_db: setattr(r, 'pos', v),
+                     size=lambda w, v, r=_db: setattr(r, 'size', v))
+        del_btn.add_widget(Label(text='Delete', font_size=sp(15), bold=True,
+                                 color=(1, 1, 1, 1), size_hint=(1, 1)))
+        del_btn.bind(on_touch_up=self._delete_touch)
+        self._container.add_widget(del_btn)
 
-    def on_touch_move(self, touch):
-        if touch.grab_current is not self:
+        scroll.add_widget(self._container)
+        self.add_widget(scroll)
+        self._scroll = scroll
+
+    def _on_width(self, *_):
+        w = self.width
+        self._content_card.width = w
+        self._container.width = w + _DEL_W
+
+    def _content_touch_down(self, widget, touch):
+        if widget.collide_point(*touch.pos):
+            self._touch_start = touch.pos
+
+    def _content_touch_up(self, widget, touch):
+        if not self._touch_start:
             return
-        dx = touch.x - self._tx
-        # Only slide if predominantly horizontal
-        if abs(dx) > abs(touch.y - self._ty):
-            base = -_DEL_W if self._swiped else 0
-            offset = max(-_DEL_W, min(0, base + dx))
-            self._main.x = self.x + offset
-
-    def on_touch_up(self, touch):
-        if touch.grab_current is not self:
-            return
-        touch.ungrab(self)
-        dx = touch.x - self._tx
-        dy = touch.y - self._ty
-
-        if abs(dx) < dp(8) and abs(dy) < dp(8):
-            # Pure tap
-            if self._swiped:
-                self._snap_close()
-            else:
+        dx = touch.x - self._touch_start[0]
+        dy = touch.y - self._touch_start[1]
+        self._touch_start = None
+        if abs(dx) < dp(12) and abs(dy) < dp(12):
+            if self._scroll.scroll_x < 0.05:
                 self._on_tap(self._location)
-        elif dx < -dp(50):
-            self._snap_open()
-        else:
-            self._snap_close()
+            else:
+                # Tap while open → close
+                Animation(scroll_x=0, duration=0.2, t='out_quad').start(self._scroll)
 
-    def _snap_open(self):
-        Animation(x=self.x - _DEL_W, duration=0.18, t='out_quad').start(self._main)
-        self._swiped = True
-
-    def _snap_close(self):
-        Animation(x=self.x, duration=0.18, t='out_quad').start(self._main)
-        self._swiped = False
-
-    def _on_delete_tap(self, widget, touch):
-        if widget.collide_point(*touch.pos) and self._swiped:
+    def _delete_touch(self, widget, touch):
+        if widget.collide_point(*touch.pos):
             self._on_delete(self._location.zip)
             return True
 

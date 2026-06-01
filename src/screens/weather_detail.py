@@ -320,37 +320,32 @@ class WeatherDetailWidget(FloatLayout):
         hero.add_widget(text_layer)
         self._content.add_widget(hero)
 
-        # ── Summary text card (dp(12) gap below hero) ────────────────
-        self._content.add_widget(Widget(size_hint_y=None, height=dp(12)))
-        summary = self._build_summary_card(w)
-        self._content.add_widget(summary)
+        # Helper: add a card with consistent 12dp vertical gap + horizontal padding
+        def add_card(widget, h=None):
+            self._content.add_widget(Widget(size_hint_y=None, height=dp(12)))
+            if h:
+                padded = BoxLayout(size_hint_y=None, height=h, padding=[dp(14), 0])
+            else:
+                padded = BoxLayout(orientation='vertical', size_hint_y=None,
+                                   padding=[dp(14), 0])
+                padded.bind(minimum_height=padded.setter('height'))
+            padded.add_widget(widget)
+            self._content.add_widget(padded)
+
+        # ── Summary text card ────────────────────────
+        add_card(self._build_summary_card(w))
 
         # ── Hourly strip ─────────────────────────────
         today_hours = w.today_hourly()
         if today_hours:
-            hourly_card = HourlyForecastCard(entries=today_hours)
-            padded = BoxLayout(size_hint_y=None, height=dp(170), padding=[dp(14), 0])
-            padded.add_widget(hourly_card)
-            self._content.add_widget(padded)
+            add_card(HourlyForecastCard(entries=today_hours), h=dp(178))
 
         # ── 10-day forecast ───────────────────────────
         if w.daily:
-            daily_card = DailyForecastCard(forecasts=w.daily)
-            padded = BoxLayout(size_hint_y=None, padding=[dp(14), 0])
-            padded.bind(minimum_height=padded.setter('height'))
-            padded.add_widget(daily_card)
-            self._content.add_widget(padded)
+            add_card(DailyForecastCard(forecasts=w.daily))
 
         # ── Detail cards grid ─────────────────────────
-        grid = DetailCardsGrid(data=w)
-        padded = BoxLayout(
-            orientation='vertical',
-            size_hint_y=None,
-            padding=[dp(14), 0, dp(14), 0],
-        )
-        padded.bind(minimum_height=padded.setter('height'))
-        padded.add_widget(grid)
-        self._content.add_widget(padded)
+        add_card(DetailCardsGrid(data=w))
 
         # Attribution
         attrib = Label(
@@ -425,7 +420,9 @@ class WeatherDetailWidget(FloatLayout):
 
 
 class _BottomNavBar(Widget):
-    """Bottom navigation: page dots + list button."""
+    """Bottom nav bar: swipe left/right here to navigate, dots show position."""
+    _swipe_tx = None
+
     def __init__(self, carousel: Carousel, on_list: callable, **kwargs):
         super().__init__(**kwargs)
         self._carousel = carousel
@@ -436,12 +433,51 @@ class _BottomNavBar(Widget):
         with self.canvas.before:
             Color(0, 0, 0, 0.38)
             self._bg = Rectangle(pos=self.pos, size=self.size)
-        # Dedicated group for dots so we can clear it atomically (no list.remove crash)
         self._dots_group = InstructionGroup()
         self.canvas.add(self._dots_group)
 
         self.bind(pos=self._redraw_bg, size=self._redraw_bg)
         carousel.bind(current_slide=self._redraw_dots)
+
+    # ── Swipe/tap in the nav bar navigates ────────────────────────
+    def on_touch_down(self, touch):
+        if self.collide_point(*touch.pos):
+            self._swipe_tx = touch.x
+            touch.grab(self)
+            return True
+
+    def on_touch_up(self, touch):
+        if touch.grab_current is not self:
+            return
+        touch.ungrab(self)
+        if self._swipe_tx is None:
+            return
+        dx = touch.x - self._swipe_tx
+        self._swipe_tx = None
+        if abs(dx) < dp(20):
+            # Tap on a dot — navigate to that dot's index
+            try:
+                idx = self._carousel.slides.index(self._carousel.current_slide)
+            except Exception:
+                idx = 0
+            if self._num_pages < 2:
+                return True
+            cx = self.center_x
+            spacing = dp(14)
+            total_w = (self._num_pages - 1) * spacing
+            start_x = cx - total_w / 2
+            # Find which dot was tapped
+            for i in range(self._num_pages):
+                dot_x = start_x + i * spacing
+                if abs(touch.x - dot_x) < dp(14):
+                    if i != idx and i < len(self._carousel.slides):
+                        self._carousel.load_slide(self._carousel.slides[i])
+                    return True
+        elif dx < -dp(20):
+            self._carousel.load_next()
+        elif dx > dp(20):
+            self._carousel.load_previous()
+        return True
 
     def _redraw_bg(self, *_):
         self._bg.pos = self.pos
@@ -583,10 +619,22 @@ class WeatherCarouselScreen(MDScreen):
     def _go_prev(self, *_):
         self._carousel.load_previous()
         self._update_arrows()
+        Clock.schedule_once(lambda dt: self._scroll_to_top(), 0.05)
 
     def _go_next(self, *_):
         self._carousel.load_next()
         self._update_arrows()
+        Clock.schedule_once(lambda dt: self._scroll_to_top(), 0.05)
+
+    def _scroll_to_top(self):
+        """Always snap the active slide's scroll to top on navigation."""
+        try:
+            idx = self._carousel.index
+            w = self._detail_widgets[idx]
+            if w._scroll:
+                w._scroll.scroll_y = 1.0
+        except Exception:
+            pass
 
     def _load_all_weather(self):
         for i, loc in enumerate(self._locations):
@@ -615,11 +663,12 @@ class WeatherCarouselScreen(MDScreen):
         fetch_weather(loc.lat, loc.lon, loc.zip, on_success, on_error)
 
     def navigate_to(self, zip_code: str):
-        """Jump carousel to the slide for the given zip code."""
+        """Jump carousel to the slide for the given zip code, always scroll to top."""
         for i, loc in enumerate(self._locations):
             if loc.zip == zip_code:
                 if i < len(self._detail_widgets):
                     self._carousel.load_slide(self._detail_widgets[i])
+                    Clock.schedule_once(lambda dt: self._scroll_to_top(), 0.05)
                 break
 
     def add_location(self, location: Location):
