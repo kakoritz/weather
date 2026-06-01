@@ -83,21 +83,29 @@ class WeatherDetailWidget(FloatLayout):
             self._sky_rect.size = self.size
 
     def show_error(self, msg: str, retry_fn=None):
-        """Replace loading state with a tap-to-retry error screen."""
+        """Replace loading state with an error screen — city name centered + Retry."""
         self._weather = None
         self.clear_widgets()
         self._draw_sky()
-        content = BoxLayout(orientation='vertical', size_hint=(1, 1), padding=[dp(32), dp(80)])
-        content.add_widget(Label(
-            text=self._location.city,
-            font_size=sp(28), bold=True, color=(1, 1, 1, 0.90),
-            size_hint_y=None, height=dp(40), halign='center', valign='middle',
-        ))
-        content.add_widget(Label(
-            text='Unable to load weather.\nCheck your connection.',
-            font_size=sp(16), color=(1, 1, 1, 0.65),
-            size_hint_y=None, height=dp(56), halign='center', valign='middle',
-        ))
+        # Use a FloatLayout so content is truly centred regardless of screen height
+        fl = FloatLayout(size_hint=(1, 1))
+        box = BoxLayout(
+            orientation='vertical',
+            size_hint=(0.8, None),
+            pos_hint={'center_x': 0.5, 'center_y': 0.5},
+            spacing=dp(14),
+            padding=[0, 0],
+        )
+        box.bind(minimum_height=box.setter('height'))
+        for text, sz, bold, alpha in [
+            (self._location.city, sp(30), True, 0.95),
+            ('Unable to load weather.\nCheck your connection.', sp(15), False, 0.65),
+        ]:
+            lbl = Label(text=text, font_size=sz, bold=bold,
+                        color=(1, 1, 1, alpha), size_hint_y=None, height=dp(48) if bold else dp(44),
+                        halign='center', valign='middle')
+            lbl.bind(size=lbl.setter('text_size'))
+            box.add_widget(lbl)
         if retry_fn:
             from kivymd.uix.button import MDRaisedButton
             btn = MDRaisedButton(
@@ -106,8 +114,9 @@ class WeatherDetailWidget(FloatLayout):
                 pos_hint={'center_x': 0.5},
                 on_release=lambda *_: (self._add_loading_state_fresh(), retry_fn()),
             )
-            content.add_widget(btn)
-        self.add_widget(content)
+            box.add_widget(btn)
+        fl.add_widget(box)
+        self.add_widget(fl)
 
     def _add_loading_state_fresh(self):
         self.clear_widgets()
@@ -157,26 +166,48 @@ class WeatherDetailWidget(FloatLayout):
         self.add_widget(self._scroll)
 
     def _add_loading_state(self):
-        self._content.add_widget(Widget(size_hint_y=None, height=dp(120)))
-        self._content.add_widget(Label(
-            text=self._location.city,
-            font_size=sp(36),
-            bold=True,
-            color=(1, 1, 1, 0.90),
-            size_hint_y=None,
-            height=dp(48),
-            halign='center',
-            valign='middle',
-        ))
-        self._content.add_widget(Label(
-            text='Loading…',
-            font_size=sp(18),
-            color=(1, 1, 1, 0.55),
-            size_hint_y=None,
-            height=dp(28),
-            halign='center',
-            valign='middle',
-        ))
+        """Skeleton loading state — pre-populated layout with placeholder values."""
+        # Hero placeholder (matches hero card dimensions)
+        hero = FloatLayout(size_hint_y=None, height=dp(300))
+        # Dim placeholder background
+        with hero.canvas.before:
+            Color(0, 0, 0, 0.25)
+            _h_rect = Rectangle(pos=hero.pos, size=hero.size)
+        hero.bind(
+            pos=lambda w, v, r=_h_rect: setattr(r, 'pos', v),
+            size=lambda w, v, r=_h_rect: setattr(r, 'size', v),
+        )
+        text_layer = BoxLayout(orientation='vertical', size_hint=(1, 1),
+                               pos_hint={'x': 0, 'y': 0}, padding=[dp(16), dp(20)], spacing=dp(4))
+        for txt, sz, bold, alpha in [
+            (self._location.display_name, sp(30), True, 0.90),
+            ('--°', sp(90), False, 0.55),
+            ('Retrieving weather…', sp(18), False, 0.50),
+            ('H:--°   L:--°', sp(17), False, 0.45),
+        ]:
+            lbl = Label(text=txt, font_size=sz, bold=bold, color=(1, 1, 1, alpha),
+                        size_hint_y=None, height=dp(108) if '°' in txt and len(txt) <= 4 else dp(32),
+                        halign='center', valign='middle')
+            lbl.bind(size=lbl.setter('text_size'))
+            text_layer.add_widget(lbl)
+        hero.add_widget(text_layer)
+        self._content.add_widget(hero)
+
+        # Skeleton cards below
+        self._content.add_widget(Widget(size_hint_y=None, height=dp(12)))
+        for h in [dp(60), dp(170), dp(400)]:
+            ph = Widget(size_hint_y=None, height=h)
+            with ph.canvas:
+                Color(0, 0, 0, 0.15)
+                _rr = RoundedRectangle(pos=ph.pos, size=ph.size, radius=[dp(14)])
+            ph.bind(
+                pos=lambda w, v, r=_rr: setattr(r, 'pos', v),
+                size=lambda w, v, r=_rr: setattr(r, 'size', v),
+            )
+            padded = BoxLayout(size_hint_y=None, height=h, padding=[dp(14), 0])
+            padded.add_widget(ph)
+            self._content.add_widget(padded)
+            self._content.add_widget(Widget(size_hint_y=None, height=dp(10)))
 
     def _add_weather_content(self, w: WeatherData):
         from kivy.uix.image import Image as KivyImage
