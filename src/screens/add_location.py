@@ -24,7 +24,7 @@ KV = """
 
 <_ZipField>:
     hint_text: 'ZIP code'
-    mode: 'outlined'
+    mode: 'rectangle'
     max_text_length: 5
     input_filter: 'int'
     font_size: sp(22)
