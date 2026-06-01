@@ -10,6 +10,10 @@ from pythonforandroid.recipes.python3 import Python3Recipe
 
 class Python3RecipeAndroid(Python3Recipe):
     configure_args = list(Python3Recipe.configure_args) + [
+        # Python builds grp module if grp.h is found, regardless of individual
+        # function checks. Android Bionic has grp.h but lacks the enumerate
+        # functions. Setting header=no prevents grp module from being built at all.
+        'ac_cv_header_grp_h=no',
         'ac_cv_func_setgrent=no',
         'ac_cv_func_getgrent=no',
         'ac_cv_func_endgrent=no',
