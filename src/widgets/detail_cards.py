@@ -494,10 +494,10 @@ class TemperatureMapCard(_BaseCard):
         placeholder = Widget(size_hint=(1, 1))
         with placeholder.canvas:
             Color(0.15, 0.25, 0.40, 0.80)
-            RoundedRectangle(pos=(0, 0), size=(1, 1), radius=[dp(8)])
+            _ph_rect = RoundedRectangle(pos=(0, 0), size=(1, 1), radius=[dp(8)])
         placeholder.bind(
-            pos=lambda w, v: setattr(placeholder.canvas.children[-1], 'pos', v),
-            size=lambda w, v: setattr(placeholder.canvas.children[-1], 'size', v),
+            pos=lambda w, v, r=_ph_rect: setattr(r, 'pos', v),
+            size=lambda w, v, r=_ph_rect: setattr(r, 'size', v),
         )
         from kivy.uix.label import Label
         lbl = Label(

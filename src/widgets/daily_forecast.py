@@ -243,13 +243,13 @@ class DailyForecastCard(BoxLayout):
         header.bind(size=header.setter('text_size'))
         self.add_widget(header)
 
-        # Separator
+        # Separator — keep named reference to avoid canvas.children[-1] pitfall
         sep = Widget(size_hint_y=None, height=dp(1))
         with sep.canvas:
             Color(1, 1, 1, 0.18)
-            Rectangle(pos=sep.pos, size=sep.size)
-        sep.bind(pos=lambda w, v: setattr(sep.canvas.children[-1], 'pos', v))
-        sep.bind(size=lambda w, v: setattr(sep.canvas.children[-1], 'size', (v[0], 1)))
+            _sep_rect = Rectangle(pos=sep.pos, size=sep.size)
+        sep.bind(pos=lambda w, v, r=_sep_rect: setattr(r, 'pos', v))
+        sep.bind(size=lambda w, v, r=_sep_rect: setattr(r, 'size', (v[0], 1)))
         self.add_widget(sep)
 
         for i, f in enumerate(forecasts):
@@ -271,10 +271,13 @@ class DailyForecastCard(BoxLayout):
                 divider = Widget(size_hint_y=None, height=dp(1))
                 with divider.canvas:
                     Color(1, 1, 1, 0.10)
-                    Rectangle(size=(1, 1))
-                divider.bind(pos=lambda w, v: w.canvas.clear() or
-                             w.canvas.add(Color(1,1,1,0.10)) or
-                             w.canvas.add(Rectangle(pos=v, size=(w.width, 1))))
+                    _div_rect = Rectangle(size=(1, 1))
+
+                def _update_divider(w, v, r=_div_rect):
+                    r.pos = v
+                    r.size = (w.width, 1)
+
+                divider.bind(pos=_update_divider, size=_update_divider)
                 self.add_widget(divider)
 
         total_rows = len(forecasts)

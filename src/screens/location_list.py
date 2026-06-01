@@ -217,10 +217,10 @@ class LocationListScreen(MDScreen):
         search_box = BoxLayout(size_hint=(1, 1))
         with search_box.canvas.before:
             Color(0.15, 0.15, 0.18, 0.90)
-            RoundedRectangle(pos=(0, 0), size=(1, 1), radius=[dp(10)])
+            _sb_rect = RoundedRectangle(pos=(0, 0), size=(1, 1), radius=[dp(10)])
         search_box.bind(
-            pos=lambda w, v: setattr(search_box.canvas.children[-1], 'pos', v),
-            size=lambda w, v: setattr(search_box.canvas.children[-1], 'size', v),
+            pos=lambda w, v, r=_sb_rect: setattr(r, 'pos', v),
+            size=lambda w, v, r=_sb_rect: setattr(r, 'size', v),
         )
         search_lbl = Label(
             text='  Search for a city or airport',
