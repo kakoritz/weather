@@ -45,11 +45,19 @@ jobs:
           restore-keys: |
             buildozer-kivy-v1-
 
+      - name: Patch build_dir for CI runner
+        run: |
+          # Local spec uses /home/kakoritz which doesn't exist in CI.
+          # Override to the runner's home directory.
+          sed -i 's|build_dir = /home/kakoritz/.weatherapp-build|build_dir = /home/runner/.weatherapp-build|' buildozer.spec
+
       - name: Generate assets (icon + presplash)
         run: python create_assets.py
 
       - name: Build debug APK
-        run: buildozer -v android debug 2>&1 | tee build.log
+        run: |
+          set -o pipefail
+          buildozer -v android debug 2>&1 | tee build.log
 
       - name: Upload build log
         if: always()
