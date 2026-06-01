@@ -19,6 +19,11 @@ android.targetapi   = 34
 # Previous assumption that 25b was Kivy-specific was incorrect for current p4a.
 android.ndk         = 28c
 android.archs       = arm64-v8a
+# Pin p4a to last commit before Python 3.14 (3762c88c = Python 3.11.13).
+# p4a master (2026.05.09) uses Python 3.14 which breaks Kivy 2.3.0 —
+# _PyLong_AsByteArray gained a 6th arg in 3.14 that Cython 0.29 doesn't generate.
+# Cloned + checked out at /home/kakoritz/.p4a-py311/ — do NOT update this clone.
+p4a.source_dir      = /home/kakoritz/.p4a-py311
 android.accept_sdk_license = True
 android.permissions = INTERNET,ACCESS_NETWORK_STATE
 
