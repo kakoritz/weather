@@ -46,5 +46,15 @@ _ANDROID_MISSING = [
 class Python3RecipeAndroid(Python3Recipe):
     configure_args = list(Python3Recipe.configure_args) + _ANDROID_MISSING
 
+    def prebuild_arch(self, arch):
+        super().prebuild_arch(arch)
+        # Python 3.11 ignores ac_cv_header_grp_h for module build decisions.
+        # The official way to disable a module is Modules/Setup.local.
+        # grp depends on setgrent/getgrent/endgrent which Android Bionic never had.
+        import os
+        setup_local = os.path.join(self.get_build_dir(arch.arch), 'Modules', 'Setup.local')
+        with open(setup_local, 'a') as f:
+            f.write('*disabled* grp\n')
+
 
 recipe = Python3RecipeAndroid()
