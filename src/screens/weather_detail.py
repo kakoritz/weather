@@ -16,7 +16,7 @@ WeatherDetailWidget (one per location):
 from datetime import datetime
 
 from kivy.clock import Clock
-from kivy.graphics import Color, Ellipse, Rectangle, RoundedRectangle
+from kivy.graphics import Color, Ellipse, Rectangle, RoundedRectangle, StencilPush, StencilUse, StencilUnUse, StencilPop
 from kivy.lang import Builder
 from kivy.uix.carousel import Carousel as _KivyCarousel
 from kivy.metrics import dp, sp
@@ -64,34 +64,28 @@ class WeatherDetailWidget(FloatLayout):
         self._weather = weather
         self._scroll: ScrollView | None = None
         self._content: BoxLayout | None = None
-        self._sky_rect = None  # The solid sky-blue background rectangle
+        self._bg_rect = None
 
         Clock.schedule_once(self._build, 0)
 
-    def _draw_sky(self):
-        """Sky-blue background with pitch-black behind it (for rounded hero corners)."""
+    def _draw_bg(self):
+        """Pure black master background — floating cards sit on top of this."""
         self.canvas.before.clear()
-        night = is_night()
-        col = _NIGHT_SKY if night else _DAY_SKY
         with self.canvas.before:
-            # Pure black fills entire widget — shows at rounded hero corners
             Color(0, 0, 0, 1)
-            Rectangle(pos=self.pos, size=self.size)
-            # Sky gradient on top (hero stencil will clip to rounded rect)
-            Color(*col)
-            self._sky_rect = Rectangle(pos=self.pos, size=self.size)
-        self.bind(pos=self._update_sky, size=self._update_sky)
+            self._bg_rect = Rectangle(pos=self.pos, size=self.size)
+        self.bind(pos=self._update_bg, size=self._update_bg)
 
-    def _update_sky(self, *_):
-        if self._sky_rect:
-            self._sky_rect.pos = self.pos
-            self._sky_rect.size = self.size
+    def _update_bg(self, *_):
+        if self._bg_rect:
+            self._bg_rect.pos = self.pos
+            self._bg_rect.size = self.size
 
     def show_error(self, msg: str, retry_fn=None):
         """Replace loading state with an error screen — city name centered + Retry."""
         self._weather = None
         self.clear_widgets()
-        self._draw_sky()
+        self._draw_bg()
         # Use a FloatLayout so content is truly centred regardless of screen height
         fl = FloatLayout(size_hint=(1, 1))
         box = BoxLayout(
@@ -125,7 +119,7 @@ class WeatherDetailWidget(FloatLayout):
 
     def _add_loading_state_fresh(self):
         self.clear_widgets()
-        self._sky_rect = None
+        self._bg_rect = None
         self._scroll = None
         self._content = None
         Clock.schedule_once(self._build, 0)
@@ -133,7 +127,7 @@ class WeatherDetailWidget(FloatLayout):
     def update_weather(self, weather: WeatherData):
         self._weather = weather
         self.clear_widgets()
-        self._sky_rect = None
+        self._bg_rect = None
         self._scroll = None
         self._content = None
         Clock.schedule_once(self._build, 0)
@@ -141,12 +135,14 @@ class WeatherDetailWidget(FloatLayout):
     def _build(self, *_):
         w = self._weather
 
-        # Sky background (canvas)
-        self._draw_sky()
+        # Pure black master background — cards float on top
+        self._draw_bg()
 
-        # ── Outer vertical stack: [Hero (fixed)] [ScrollView (rest)] ──────────
-        # Hero is LOCKED at the top — it never scrolls away.
-        stack = BoxLayout(orientation='vertical', size_hint=(1, 1))
+        # Outer stack: padding creates the "floating card" margins around both cards
+        # [left, top, right, bottom] — bottom=dp(80) clears the nav bar
+        _M = dp(12)
+        stack = BoxLayout(orientation='vertical', size_hint=(1, 1),
+                          padding=[_M, _M, _M, dp(80)], spacing=dp(8))
 
         if w is None:
             self._add_loading_state(stack)
@@ -156,22 +152,33 @@ class WeatherDetailWidget(FloatLayout):
         self.add_widget(stack)
 
     def _add_loading_state(self, stack):
-        """Skeleton: hero pinned at top, ghost cards in scroll below."""
+        """Floating hero placeholder + floating blue details placeholder."""
         HERO_H = dp(240)
+        RADIUS = dp(18)
 
-        # Hero placeholder (pinned to top of stack)
+        # ── Hero placeholder (rounded, dark) ──────────────────────────
         hero = FloatLayout(size_hint=(1, None), height=HERO_H)
         with hero.canvas.before:
-            Color(0, 0, 0, 0.25)
-            _h_rect = Rectangle(pos=hero.pos, size=hero.size)
-        hero.bind(pos=lambda w, v, r=_h_rect: setattr(r, 'pos', v),
-                  size=lambda w, v, r=_h_rect: setattr(r, 'size', v))
+            StencilPush()
+            Color(1, 1, 1, 1)
+            _hm = RoundedRectangle(pos=hero.pos, size=hero.size, radius=[RADIUS])
+            StencilUse()
+            Color(0.10, 0.14, 0.22, 1)
+            _hbg = Rectangle(pos=hero.pos, size=hero.size)
+        hero.bind(
+            pos=lambda w, v, a=_hm, b=_hbg: (setattr(a, 'pos', v), setattr(b, 'pos', v)),
+            size=lambda w, v, a=_hm, b=_hbg: (setattr(a, 'size', v), setattr(b, 'size', v)),
+        )
+        with hero.canvas.after:
+            StencilUnUse()
+            StencilPop()
+
         tl = BoxLayout(orientation='vertical', size_hint=(1, 1),
                        pos_hint={'x': 0, 'y': 0}, padding=[dp(16), dp(16)], spacing=dp(4))
         for txt, sz, alpha in [
             (self._location.display_name, sp(26), 0.90),
-            ('--°', sp(80), 0.55),
-            ('Retrieving weather…', sp(16), 0.50),
+            ('--°', sp(80), 0.45),
+            ('Retrieving weather…', sp(16), 0.40),
         ]:
             lbl = Label(text=txt, font_size=sz, bold=False, color=(1, 1, 1, alpha),
                         size_hint_y=None, height=dp(92) if txt == '--°' else dp(28),
@@ -181,25 +188,23 @@ class WeatherDetailWidget(FloatLayout):
         hero.add_widget(tl)
         stack.add_widget(hero)
 
-        # Scrollable skeleton cards
-        self._scroll = ScrollView(do_scroll_y=True, do_scroll_x=False,
-                                  bar_width=0, size_hint=(1, 1), effect_cls='ScrollEffect')
-        content = BoxLayout(orientation='vertical', size_hint_y=None,
-                            padding=[0, 0, 0, dp(80)], spacing=0)
-        content.bind(minimum_height=content.setter('height'))
-        for h in [dp(50), dp(170), dp(400)]:
-            content.add_widget(Widget(size_hint_y=None, height=dp(10)))
-            ph = Widget(size_hint_y=None, height=h)
-            with ph.canvas:
-                Color(0, 0, 0, 0.12)
-                _rr = RoundedRectangle(pos=ph.pos, size=ph.size, radius=[dp(14)])
-            ph.bind(pos=lambda w, v, r=_rr: setattr(r, 'pos', v),
-                    size=lambda w, v, r=_rr: setattr(r, 'size', v))
-            padded = BoxLayout(size_hint_y=None, height=h, padding=[dp(14), 0])
-            padded.add_widget(ph)
-            content.add_widget(padded)
-        self._scroll.add_widget(content)
-        stack.add_widget(self._scroll)
+        # ── Details placeholder (rounded, blue) ───────────────────────
+        details = BoxLayout(orientation='vertical', size_hint=(1, 1))
+        with details.canvas.before:
+            StencilPush()
+            Color(1, 1, 1, 1)
+            _dm = RoundedRectangle(pos=details.pos, size=details.size, radius=[RADIUS])
+            StencilUse()
+            Color(0.10, 0.16, 0.28, 1)
+            _dbg = Rectangle(pos=details.pos, size=details.size)
+        details.bind(
+            pos=lambda w, v, a=_dm, b=_dbg: (setattr(a, 'pos', v), setattr(b, 'pos', v)),
+            size=lambda w, v, a=_dm, b=_dbg: (setattr(a, 'size', v), setattr(b, 'size', v)),
+        )
+        with details.canvas.after:
+            StencilUnUse()
+            StencilPop()
+        stack.add_widget(details)
 
     def _add_weather_content(self, stack, w: WeatherData):
         from kivy.uix.image import Image as KivyImage
@@ -208,10 +213,8 @@ class WeatherDetailWidget(FloatLayout):
         night = is_night()
         HERO_H = dp(260) if night else dp(240)   # -20% from original dp(320/300)
 
-        # ── Hero card — rounded all 4 corners; black bleeds behind corners ──
+        # ── Hero card — rounded all 4 corners, floating on black background ──
         hero = FloatLayout(size_hint=(1, None), height=HERO_H)
-        # Stencil-clip hero content to rounded rectangle (all 4 corners)
-        from kivy.graphics import StencilPush, StencilUse, StencilUnUse, StencilPop
         with hero.canvas.before:
             StencilPush()
             Color(1, 1, 1, 1)
@@ -374,13 +377,32 @@ class WeatherDetailWidget(FloatLayout):
             text_layer.add_widget(moon_sub)
 
         hero.add_widget(text_layer)
-        stack.add_widget(hero)   # ← STICKY: hero goes directly into the outer stack
+        stack.add_widget(hero)
 
-        # ── Scrollable content below the fixed hero ────────────────────
+        # ── Details card: deep blue, rounded all 4 corners, fills remaining space ──
+        RADIUS = dp(18)
+        details = BoxLayout(orientation='vertical', size_hint=(1, 1))
+        with details.canvas.before:
+            StencilPush()
+            Color(1, 1, 1, 1)
+            _det_mask = RoundedRectangle(pos=details.pos, size=details.size, radius=[RADIUS])
+            StencilUse()
+            Color(0.10, 0.16, 0.28, 1)   # deep blue
+            _det_bg = Rectangle(pos=details.pos, size=details.size)
+        details.bind(
+            pos=lambda w, v, a=_det_mask, b=_det_bg: (setattr(a, 'pos', v), setattr(b, 'pos', v)),
+            size=lambda w, v, a=_det_mask, b=_det_bg: (setattr(a, 'size', v), setattr(b, 'size', v)),
+        )
+        with details.canvas.after:
+            StencilUnUse()
+            StencilPop()
+        stack.add_widget(details)
+
+        # ── Scrollable content inside the blue details card ────────────
         self._scroll = ScrollView(do_scroll_y=True, do_scroll_x=False,
                                   bar_width=0, size_hint=(1, 1), effect_cls='ScrollEffect')
         self._content = BoxLayout(orientation='vertical', size_hint_y=None,
-                                  padding=[0, 0, 0, dp(80)], spacing=0)
+                                  padding=[0, dp(4), 0, dp(20)], spacing=0)
         self._content.bind(minimum_height=self._content.setter('height'))
 
         def add_card(widget, h=None):
@@ -417,7 +439,7 @@ class WeatherDetailWidget(FloatLayout):
         self._content.add_widget(attrib)
 
         self._scroll.add_widget(self._content)
-        stack.add_widget(self._scroll)
+        details.add_widget(self._scroll)
 
     def _build_summary_text(self, w: WeatherData) -> str:
         """Build a one-line summary for the hourly card header."""

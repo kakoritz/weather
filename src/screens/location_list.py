@@ -237,24 +237,23 @@ class _LocationCard(BoxLayout):
 # ── Dropdown menu (pops out from button) ─────────────────────────────────────
 
 class _DropdownMenu(FloatLayout):
-    """Compact dropdown that appears below the ⋯ button."""
+    """Compact dropdown anchored just below the ⋯ button."""
 
-    def __init__(self, btn_pos, btn_size, storage, on_close,
+    def __init__(self, menu_x, menu_y, storage, on_close,
                  on_edit_list, current_units='F', **kwargs):
         super().__init__(size_hint=(1, 1), **kwargs)
 
-        # Transparent full-screen dim — tap to close
+        from kivy.core.window import Window as _W
+
+        # Full-screen dim — tap outside to close
         dim = Widget(size_hint=(1, 1))
         with dim.canvas:
             Color(0, 0, 0, 0.25)
             _d = Rectangle(pos=dim.pos, size=dim.size)
         dim.bind(pos=lambda w, v, r=_d: setattr(r, 'pos', v),
                  size=lambda w, v, r=_d: setattr(r, 'size', v))
-        dim.bind(on_touch_down=lambda w, t: on_close()
-                 if not self._menu_rect.collide_point(*t.pos) else None)
         self.add_widget(dim)
 
-        # Menu card — positioned below+left of the button
         MENU_W = dp(280)
         ITEM_H = dp(46)
         ITEMS = [
@@ -263,30 +262,37 @@ class _DropdownMenu(FloatLayout):
             ('thermometer', 'Fahrenheit °F', lambda: self._set_unit('F', storage, on_close)),
             ('thermometer', 'Celsius °C',    lambda: self._set_unit('C', storage, on_close)),
             None,
-            ('bell-outline',        'Notifications',   on_close),
-            ('flag-outline',        'Report an Issue', on_close),
+            ('bell-outline',  'Notifications',   on_close),
+            ('flag-outline',  'Report an Issue', on_close),
         ]
-        # Count actual items (not separators)
         n_items = sum(1 for x in ITEMS if x is not None)
         n_seps   = sum(1 for x in ITEMS if x is None)
         MENU_H = n_items * ITEM_H + n_seps * dp(1) + dp(10)
 
-        # Always anchor to top-right of screen — no widget coord conversion needed
-        from kivy.core.window import Window as _W
-        mx = _W.width - MENU_W - dp(8)
-        my = _W.height - dp(140) - MENU_H
+        # pos_hint relative to FloatLayout (= Window) — FloatLayout.do_layout applies
+        # this reliably regardless of when/how the widget tree is resized.
+        x_hint = menu_x / _W.width
+        y_hint = menu_y / _W.height
 
         menu = BoxLayout(orientation='vertical',
                          size_hint=(None, None),
                          size=(MENU_W, MENU_H),
-                         pos=(mx, my),
+                         pos_hint={'x': x_hint, 'y': y_hint},
                          padding=[0, dp(6)])
         self._menu_rect = menu
 
         with menu.canvas.before:
             Color(0.12, 0.14, 0.20, 0.97)
-            RoundedRectangle(pos=menu.pos, size=menu.size, radius=[dp(12)])
-        menu.bind(pos=lambda w, v: None)
+            _mbg = RoundedRectangle(pos=menu.pos, size=menu.size, radius=[dp(12)])
+        # Canvas background MUST follow when FloatLayout repositions the card via pos_hint
+        menu.bind(
+            pos=lambda w, v, r=_mbg: setattr(r, 'pos', v),
+            size=lambda w, v, r=_mbg: setattr(r, 'size', v),
+        )
+
+        # Close when tapping outside the menu card
+        dim.bind(on_touch_down=lambda w, t: on_close()
+                 if not self._menu_rect.collide_point(*t.pos) else None)
 
         for item in ITEMS:
             if item is None:
@@ -536,23 +542,34 @@ class LocationListScreen(MDScreen):
     def _open_menu(self, *_):
         if self._menu_open:
             return
+        # Delay one frame so button layout is guaranteed complete before to_window()
+        Clock.schedule_once(self._do_open_menu, 0)
+
+    def _do_open_menu(self, dt):
         self._menu_open = True
         from kivy.core.window import Window
+
         units = self._storage.get_units() if self._storage else 'F'
         btn = self._menu_btn
-        # Menu button is always top-right — anchor menu there directly
-        # Avoids all widget coordinate conversion issues
-        from kivy.core.window import Window as _Win
+
+        MENU_W = dp(280)
+        MENU_H = 5 * dp(46) + 2 * dp(1) + dp(10)   # 5 items + 2 separators
+
+        # btn.to_window(0, 0) = button's bottom-left corner in Window coordinates
+        bx, by = btn.to_window(0, 0)
+        # Drop menu below the button, right-aligned to its right edge
+        menu_x = bx + btn.width - MENU_W
+        menu_y = by - MENU_H - dp(4)
+        menu_x = max(dp(8), min(menu_x, Window.width - MENU_W - dp(8)))
+        menu_y = max(dp(8), menu_y)
+
         menu = _DropdownMenu(
-            btn_pos=(_Win.width, _Win.height),   # top-right of screen
-            btn_size=(dp(44), dp(44)),
+            menu_x=menu_x, menu_y=menu_y,
             storage=self._storage,
             on_close=self._close_menu,
             on_edit_list=self._toggle_edit,
             current_units=units,
         )
-        menu.size = (Window.width, Window.height)
-        menu.pos = (0, 0)
         self._menu_widget = menu
         Window.add_widget(menu)
 

@@ -718,37 +718,48 @@ class TemperatureMapCard(_BaseCard):
         self.add_widget(_see_more_footer(self._open_map))
 
     def _open_map(self):
-        def build(box):
-            # Windy.com embed — interactive heat map, no API key needed
-            url = (
-                f'https://embed.windy.com/embed2.html?'
-                f'lat={self._lat}&lon={self._lon}'
-                f'&detailLat={self._lat}&detailLon={self._lon}'
-                f'&width=650&height=450&zoom=8&level=surface'
-                f'&overlay=temp&product=ecmwf&menu=&message=&marker=&calendar='
-                f'&pressure=&type=map&location=coordinates&detail=&metricWind=mph'
-                f'&metricTemp=%C2%B0F&radarRange=-1'
-            )
-            try:
-                from kivy.uix.widget import Widget as _W
-                # Try to use Android WebView via pyjnius
-                from jnius import autoclass  # type: ignore
-                WebView = autoclass('android.webkit.WebView')
-                # Fall back to label if WebView unavailable
-                raise ImportError
-            except Exception:
-                # Desktop / fallback: show URL + instructions
-                from kivy.uix.label import Label as _L
-                lbl = _L(
-                    text=f'Temperature Map\n\n'
-                         f'Open in browser:\n{url[:60]}...\n\n'
-                         f'Location: {self._city}\n{self._lat:.3f}, {self._lon:.3f}',
-                    font_size=sp(13), color=(1, 1, 1, 0.85),
-                    halign='center', valign='top',
-                    size_hint_y=None, height=dp(240),
-                )
-                box.add_widget(lbl)
-        _SlideUpModal.show('Temperature Map', build, self)
+        url = (
+            f'https://embed.windy.com/embed2.html?'
+            f'lat={self._lat}&lon={self._lon}'
+            f'&detailLat={self._lat}&detailLon={self._lon}'
+            f'&width=650&height=450&zoom=8&level=surface'
+            f'&overlay=temp&product=ecmwf&menu=&message=&marker='
+            f'&pressure=&type=map&location=coordinates&detail='
+            f'&metricWind=mph&metricTemp=%C2%B0F&radarRange=-1'
+        )
+
+        # Android: full-screen native WebView dialog
+        try:
+            from jnius import autoclass  # type: ignore
+            from android.runnable import run_on_ui_thread  # type: ignore
+
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            WebView = autoclass('android.webkit.WebView')
+            Dialog = autoclass('android.app.Dialog')
+
+            @run_on_ui_thread
+            def _open_webview():
+                activity = PythonActivity.mActivity
+                dlg = Dialog(activity)
+                wv = WebView(activity)
+                s = wv.getSettings()
+                s.setJavaScriptEnabled(True)
+                s.setLoadWithOverviewMode(True)
+                s.setUseWideViewPort(True)
+                s.setDomStorageEnabled(True)
+                wv.loadUrl(url)
+                dlg.setContentView(wv)
+                dlg.getWindow().setLayout(-1, -1)   # MATCH_PARENT
+                dlg.show()
+
+            _open_webview()
+            return
+        except Exception:
+            pass
+
+        # Desktop / CI fallback: open in system browser
+        import webbrowser
+        webbrowser.open(url)
 
 
 # ──────────────────────────────────────────────
