@@ -79,23 +79,14 @@ class WeatherApp(MDApp):
         self.sm = ScreenManager(transition=NoTransition())
 
         locations = self.storage.load_locations()
-
-        if not locations:
-            # No saved locations — go straight to add screen (no cancel button)
-            add_screen = AddLocationScreen(
-                name='add_location',
-                on_location_added=self._on_first_location_added,
-                on_cancel=None,
-            )
-            self.sm.add_widget(add_screen)
-            self.sm.current = 'add_location'
-        else:
-            self._build_main_screens(locations)
+        # Always build main screens — LocationListScreen has a search bar
+        # built in, so there is no separate AddLocationScreen needed.
+        self._build_main_screens(locations)
 
         return self.sm
 
     def _build_main_screens(self, locations: list):
-        """Build the carousel + list screens with the given locations."""
+        """Build carousel + list screens. If no locations, land on list (search bar)."""
         carousel_screen = WeatherCarouselScreen(
             name='weather_carousel',
             locations=locations,
@@ -108,21 +99,15 @@ class WeatherApp(MDApp):
             locations=locations,
             weather_map=carousel_screen.weather_map,
             on_tap=self._on_list_tap,
-            on_add=self._on_search_add,       # search picks a Location directly
+            on_add=self._on_search_add,
             on_delete=self._on_delete_location,
             storage=self.storage,
         )
         self.sm.add_widget(list_screen)
 
-        # Add location screen (accessible from list — has cancel button)
-        add_screen = AddLocationScreen(
-            name='add_location',
-            on_location_added=self._on_location_added,
-            on_cancel=lambda: setattr(self.sm, 'current', 'weather_carousel'),
-        )
-        self.sm.add_widget(add_screen)
-
-        self.sm.current = 'weather_carousel'
+        # No locations → drop straight into the list so user sees the search bar.
+        # Has locations → show the weather carousel immediately.
+        self.sm.current = 'location_list' if not locations else 'weather_carousel'
 
     def _on_first_location_added(self, location: Location):
         """Called from AddLocationScreen when the very first location is saved."""

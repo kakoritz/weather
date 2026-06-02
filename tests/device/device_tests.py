@@ -227,11 +227,15 @@ class DeviceTestRunner:
         return loaded
 
     def launch_with_no_data(self):
-        """Remove all saved locations and relaunch — should show add-city screen."""
+        """Relaunch fresh WITHOUT deleting user data — just force-stop and restart.
+
+        IMPORTANT: We never delete locations.json — that destroys user data.
+        If no locations exist, the app will show the location list with search bar.
+        """
         self.wake()
         self.adb('shell', 'am', 'force-stop', PKG)
         time.sleep(1)
-        self.adb('shell', 'run-as', PKG, 'rm', '-f', 'files/locations.json')
+        # Only clear weather cache (safe — it refetches on next launch)
         self.adb('shell', 'run-as', PKG, 'rm', '-f', 'files/weather_cache.json')
         self.clear_logcat()
         self.adb('shell', 'am', 'start', '-n', ACTIVITY)
