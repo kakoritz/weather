@@ -93,6 +93,86 @@ class _BaseCard(BoxLayout):
     pass
 
 
+def _see_more_footer(on_tap):
+    """Footer button — 'See More  ›' tappable line at the bottom of a card."""
+    from kivy.uix.boxlayout import BoxLayout as _BL
+    row = _BL(orientation='horizontal', size_hint_y=None, height=dp(24))
+    lbl = Label(text='See More  ›', font_size=sp(12), color=(1, 1, 1, 0.55),
+                size_hint=(1, 1), halign='right', valign='middle')
+    lbl.bind(size=lbl.setter('text_size'))
+    row.add_widget(lbl)
+    row.bind(on_touch_up=lambda w, t: on_tap() if w.collide_point(*t.pos) else None)
+    return row
+
+
+class _SlideUpModal(FloatLayout):
+    """Dark gray panel that slides up from bottom (95% of screen height)."""
+
+    def __init__(self, title: str, content_builder, **kwargs):
+        super().__init__(size_hint=(1, 1), **kwargs)
+        # Dim overlay
+        dim = Widget(size_hint=(1, 1))
+        with dim.canvas:
+            Color(0, 0, 0, 0.55)
+            _dim = Rectangle(pos=dim.pos, size=dim.size)
+        dim.bind(pos=lambda w, v, r=_dim: setattr(r, 'pos', v),
+                 size=lambda w, v, r=_dim: setattr(r, 'size', v))
+        dim.bind(on_touch_down=lambda w, t: self._close() if w.collide_point(*t.pos) else None)
+        self.add_widget(dim)
+
+        # Panel
+        panel = BoxLayout(orientation='vertical',
+                          size_hint=(1, 0.95), pos_hint={'bottom': 1})
+        with panel.canvas.before:
+            Color(0.11, 0.13, 0.17, 1)
+            RoundedRectangle(pos=panel.pos, size=panel.size, radius=[dp(20), dp(20), 0, 0])
+        panel.bind(pos=lambda w, v: None)
+        self.add_widget(panel)
+        self._panel = panel
+
+        # Header
+        hdr = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(52),
+                        padding=[dp(20), 0])
+        hdr.add_widget(Label(text=title, font_size=sp(18), bold=True,
+                             color=(1, 1, 1, 0.95), size_hint=(1, 1),
+                             halign='left', valign='middle'))
+        from kivymd.uix.button import MDIconButton
+        close_btn = MDIconButton(icon='close', theme_icon_color='Custom',
+                                 icon_color=(1, 1, 1, 0.70), icon_size=dp(22),
+                                 size_hint=(None, None), size=(dp(44), dp(44)),
+                                 on_release=lambda *_: self._close())
+        hdr.add_widget(close_btn)
+        panel.add_widget(hdr)
+
+        # Content
+        from kivy.uix.scrollview import ScrollView
+        sv = ScrollView(do_scroll_y=True, do_scroll_x=False, bar_width=0,
+                        size_hint=(1, 1))
+        inner = BoxLayout(orientation='vertical', size_hint_y=None,
+                          padding=[dp(20), dp(8), dp(20), dp(40)])
+        inner.bind(minimum_height=inner.setter('height'))
+        content_builder(inner)
+        sv.add_widget(inner)
+        panel.add_widget(sv)
+
+    def _close(self):
+        parent = self.parent
+        if parent:
+            parent.remove_widget(self)
+
+    @staticmethod
+    def show(title: str, content_builder, target_widget):
+        """Find the root FloatLayout parent and attach the modal there."""
+        root = target_widget
+        for _ in range(20):
+            if root.parent is None:
+                break
+            root = root.parent
+        modal = _SlideUpModal(title=title, content_builder=content_builder,
+                              size_hint=(1, 1))
+        root.add_widget(modal)
+
+
 # ──────────────────────────────────────────────
 # Air Quality
 # ──────────────────────────────────────────────
@@ -100,11 +180,42 @@ class _BaseCard(BoxLayout):
 class AirQualityCard(_BaseCard):
     def __init__(self, aq: AirQualityData, **kwargs):
         super().__init__(**kwargs)
+        self._aq = aq
         self.add_widget(_card_title('Air Quality'))
         self.add_widget(_card_value(f'{aq.us_aqi} — {aq.category}', size=sp(22)))
         self.add_widget(_card_sub(aq.description))
         bar = _AQIBar(aqi=aq.us_aqi, size_hint=(1, None), height=dp(6))
         self.add_widget(bar)
+        self.add_widget(_see_more_footer(self._open_detail))
+
+    def _open_detail(self):
+        aq = self._aq
+        def build(box):
+            stats = [
+                ('US AQI',            f'{aq.us_aqi}',              aq.category),
+                ('PM2.5',             f'{aq.pm2_5:.1f} µg/m³',     ''),
+                ('PM10',              f'{aq.pm10:.1f} µg/m³',      ''),
+                ('Ozone (O₃)',        f'{aq.ozone:.1f} µg/m³',     ''),
+                ('Nitrogen Dioxide',  f'{aq.nitrogen_dioxide:.1f} µg/m³', ''),
+            ]
+            for name, val, note in stats:
+                row = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(46))
+                row.add_widget(Label(text=name, font_size=sp(15), bold=False,
+                                     color=(1, 1, 1, 0.75), size_hint=(1, 1),
+                                     halign='left', valign='middle'))
+                row.add_widget(Label(text=val + (f'  {note}' if note else ''),
+                                     font_size=sp(15), bold=True, color=(1, 1, 1, 1),
+                                     size_hint=(None, 1), width=dp(180),
+                                     halign='right', valign='middle'))
+                box.add_widget(row)
+                box.add_widget(Widget(size_hint_y=None, height=dp(1)))
+            box.add_widget(Label(
+                text='Data: Open-Meteo Air Quality API',
+                font_size=sp(11), color=(1, 1, 1, 0.30),
+                size_hint_y=None, height=dp(30),
+                halign='center', valign='middle',
+            ))
+        _SlideUpModal.show('Air Quality', build, self)
 
 
 class _AQIBar(Widget):
@@ -318,6 +429,7 @@ class WindCard(_BaseCard):
 
 
 class _WindCompass(Widget):
+    """Proper compass rose with tick marks, N/S/E/W labels, and arrow needle."""
     def __init__(self, deg: int, **kwargs):
         super().__init__(**kwargs)
         self._deg = deg
@@ -329,30 +441,59 @@ class _WindCompass(Widget):
         if w < 1:
             return
         cx, cy = self.x + w/2, self.y + h/2
-        r = min(w, h) / 2 - dp(4)
+        r = min(w, h) / 2 - dp(6)
 
         with self.canvas:
             # Outer ring
-            Color(1, 1, 1, 0.20)
-            Line(circle=(cx, cy, r), width=1)
+            Color(1, 1, 1, 0.18)
+            Line(circle=(cx, cy, r), width=1.5)
+            # Inner ring
+            Color(1, 1, 1, 0.08)
+            Line(circle=(cx, cy, r * 0.6), width=1)
 
-            # N/S/E/W labels
-            Color(1, 1, 1, 0.55)
-            for label, dx, dy in [('N', 0, r+2), ('S', 0, -r-10),
-                                   ('E', r+2, 0), ('W', -r-10, 0)]:
-                from kivy.uix.label import Label as KivyLabel
-                pass  # Labels drawn as text in canvas is complex; skip for now
+            # Cardinal tick marks
+            for i in range(12):
+                angle = math.radians(i * 30)
+                is_cardinal = (i % 3 == 0)
+                inner = r * (0.78 if is_cardinal else 0.85)
+                outer = r * 0.98
+                Color(1, 1, 1, 0.60 if is_cardinal else 0.25)
+                x1 = cx + math.cos(angle) * inner
+                y1 = cy + math.sin(angle) * inner
+                x2 = cx + math.cos(angle) * outer
+                y2 = cy + math.sin(angle) * outer
+                Line(points=[x1, y1, x2, y2], width=1.5 if is_cardinal else 0.8)
 
-            # Direction needle
-            rad = math.radians(self._deg - 90)
-            nx = cx + math.cos(rad) * (r * 0.7)
-            ny = cy + math.sin(rad) * (r * 0.7)
-            Color(0.98, 0.88, 0.22, 1.0)
-            Line(points=[cx, cy, nx, ny], width=2.5)
+            # N marker (top = 90° in screen coords = 270° math)
+            north_r = r * 0.62
+            Color(0.95, 0.30, 0.30, 1.0)
+            Ellipse(pos=(cx - dp(5), cy + north_r - dp(5)), size=(dp(10), dp(10)))
 
-            # Center dot
-            Color(1, 1, 1, 0.90)
-            Ellipse(pos=(cx - 4, cy - 4), size=(8, 8))
+            # Direction needle — pointer triangle
+            needle_angle = math.radians(self._deg - 90)  # screen coords
+            tip_r = r * 0.72
+            base_r = dp(5)
+            tx = cx + math.cos(needle_angle) * tip_r
+            ty = cy + math.sin(needle_angle) * tip_r
+            # Two base points perpendicular to needle
+            perp = needle_angle + math.pi / 2
+            bx1 = cx + math.cos(perp) * base_r
+            by1 = cy + math.sin(perp) * base_r
+            bx2 = cx - math.cos(perp) * base_r
+            by2 = cy - math.sin(perp) * base_r
+            Color(0.98, 0.92, 0.25, 1.0)
+            Line(points=[bx1, by1, tx, ty, bx2, by2, bx1, by1], width=1.8)
+
+            # Tail (opposite direction, shorter)
+            tail_r = r * 0.30
+            tail_x = cx - math.cos(needle_angle) * tail_r
+            tail_y = cy - math.sin(needle_angle) * tail_r
+            Color(1, 1, 1, 0.45)
+            Line(points=[cx, cy, tail_x, tail_y], width=1.5)
+
+            # Centre dot
+            Color(1, 1, 1, 0.95)
+            Ellipse(pos=(cx - dp(3.5), cy - dp(3.5)), size=(dp(7), dp(7)))
 
 
 # ──────────────────────────────────────────────
@@ -487,35 +628,50 @@ class _PressureGauge(Widget):
 # ──────────────────────────────────────────────
 
 class TemperatureMapCard(_BaseCard):
-    def __init__(self, **kwargs):
+    def __init__(self, lat: float = 35.37, lon: float = -81.96,
+                 city: str = '', temp: int = 0, **kwargs):
         super().__init__(**kwargs)
         self.height = dp(165)
+        self._lat = lat
+        self._lon = lon
+        self._city = city
+        self._temp = temp
+
         self.add_widget(_card_title('Temperature'))
-        placeholder = Widget(size_hint=(1, 1))
-        with placeholder.canvas:
-            Color(0.15, 0.25, 0.40, 0.80)
-            _ph_rect = RoundedRectangle(pos=(0, 0), size=(1, 1), radius=[dp(8)])
-        placeholder.bind(
-            pos=lambda w, v, r=_ph_rect: setattr(r, 'pos', v),
-            size=lambda w, v, r=_ph_rect: setattr(r, 'size', v),
-        )
-        from kivy.uix.label import Label
-        lbl = Label(
-            text='Map — coming in v1.1',
-            font_size=sp(13),
-            color=(1, 1, 1, 0.50),
-        )
-        placeholder.add_widget(lbl)
-        self.add_widget(placeholder)
-        self.add_widget(Label(
-            text='See More  ›',
-            font_size=sp(13),
-            color=(1, 1, 1, 0.50),
-            size_hint_y=None,
-            height=dp(22),
-            halign='left',
-            valign='middle',
+
+        # Map preview (gradient placeholder — tappable)
+        preview = Widget(size_hint=(1, 1))
+        with preview.canvas:
+            # Temperature gradient: blue (cold) → yellow → red (hot)
+            for i, col in enumerate([(0.25,0.55,0.90), (0.35,0.75,0.50),
+                                      (0.90,0.80,0.20), (0.95,0.40,0.15)]):
+                Color(*col, 0.6)
+                RoundedRectangle(pos=(0, 0), size=(1, 1), radius=[dp(6)])
+        preview.bind(pos=lambda w, v: None, size=lambda w, v: None)
+        preview.add_widget(Label(
+            text=f'{city}\n{temp}°',
+            font_size=sp(13), color=(1, 1, 1, 0.70),
+            halign='center', valign='middle', size_hint=(1, 1),
         ))
+        preview.bind(on_touch_up=lambda w, t: self._open_map()
+                     if w.collide_point(*t.pos) else None)
+        self.add_widget(preview)
+        self.add_widget(_see_more_footer(self._open_map))
+
+    def _open_map(self):
+        def build(box):
+            box.add_widget(Label(
+                text=(
+                    'Temperature Map\n\n'
+                    'Full interactive heat map coming in v1.2\n\n'
+                    f'Current location:\n{self._city}\n'
+                    f'Lat {self._lat:.2f}, Lon {self._lon:.2f}'
+                ),
+                font_size=sp(15), color=(1, 1, 1, 0.80),
+                halign='center', valign='top',
+                size_hint_y=None, height=dp(220),
+            ))
+        _SlideUpModal.show('Temperature', build, self)
 
 
 # ──────────────────────────────────────────────
@@ -539,8 +695,13 @@ class DetailCardsGrid(GridLayout):
         else:
             self.add_widget(Widget(size_hint_y=None, height=dp(150)))
 
-        # Temperature Map (placeholder)
-        self.add_widget(TemperatureMapCard())
+        # Temperature Map
+        self.add_widget(TemperatureMapCard(
+            lat=getattr(data, '_lat', 35.37),
+            lon=getattr(data, '_lon', -81.96),
+            city=data.location_zip,
+            temp=c.temp,
+        ))
 
         # UV Index
         self.add_widget(UVIndexCard(uv=c.uv))

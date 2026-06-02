@@ -108,8 +108,9 @@ class WeatherApp(MDApp):
             locations=locations,
             weather_map=carousel_screen.weather_map,
             on_tap=self._on_list_tap,
-            on_add=self._on_add_requested,
+            on_add=self._on_search_add,       # search picks a Location directly
             on_delete=self._on_delete_location,
+            storage=self.storage,
         )
         self.sm.add_widget(list_screen)
 
@@ -152,6 +153,10 @@ class WeatherApp(MDApp):
     def _on_add_requested(self):
         self.sm.current = 'add_location'
 
+    def _on_search_add(self, location: Location):
+        """Called when user picks a city from the location list search bar."""
+        self._on_location_added(location)
+
     def _on_delete_location(self, zip_code: str):
         self.storage.remove_location(zip_code)
         carousel = self.sm.get_screen('weather_carousel')
@@ -182,8 +187,9 @@ class WeatherApp(MDApp):
             locations=carousel.locations,
             weather_map=carousel.weather_map,
             on_tap=self._on_list_tap,
-            on_add=self._on_add_requested,
+            on_add=self._on_search_add,
             on_delete=self._on_delete_location,
+            storage=self.storage,
         )
         self.sm.add_widget(list_screen)
 

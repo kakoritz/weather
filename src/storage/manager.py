@@ -7,8 +7,12 @@ from typing import Optional
 from src.models.location import Location
 from src.models.weather import WeatherData
 
-CACHE_TTL_SECONDS = 600   # 10 minutes — normal refresh
+CACHE_TTL_SECONDS = 600   # 10 minutes
 CACHE_STALE_SECONDS = 1800  # 30 minutes — force-refresh on app open if older
+
+_SETTINGS_DEFAULTS = {
+    'units': 'F',   # 'F' or 'C'
+}
 
 
 class StorageManager:
@@ -101,3 +105,28 @@ class StorageManager:
             'data': data.to_dict(),
         }
         self._save_cache(cache)
+
+    # --- Settings ---
+
+    def _settings_path(self) -> str:
+        return os.path.join(self._data_dir, 'settings.json')
+
+    def load_settings(self) -> dict:
+        try:
+            with open(self._settings_path()) as f:
+                s = json.load(f)
+            return {**_SETTINGS_DEFAULTS, **s}
+        except (FileNotFoundError, json.JSONDecodeError):
+            return dict(_SETTINGS_DEFAULTS)
+
+    def save_settings(self, settings: dict) -> None:
+        with open(self._settings_path(), 'w') as f:
+            json.dump(settings, f)
+
+    def get_units(self) -> str:
+        return self.load_settings().get('units', 'F')
+
+    def set_units(self, units: str) -> None:
+        s = self.load_settings()
+        s['units'] = units
+        self.save_settings(s)
