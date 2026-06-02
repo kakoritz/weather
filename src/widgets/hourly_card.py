@@ -201,16 +201,11 @@ class _WeatherIconSmall(Widget):
 
 
 class HourlyForecastCard(BoxLayout):
-    def __init__(self, entries: list, **kwargs):
+    def __init__(self, entries: list, first_is_now: bool = False, **kwargs):
         super().__init__(**kwargs)
-        self._build(entries)
+        self._build(entries, first_is_now)
 
-    def _build(self, entries: list):
-        now_hour = datetime.now().hour
-        now_minute = datetime.now().minute
-        active_hour = now_hour + (1 if now_minute >= 45 else 0)
-        active_hour = min(active_hour, 23)
-
+    def _build(self, entries: list, first_is_now: bool):
         scroll = ScrollView(
             do_scroll_x=True,
             do_scroll_y=False,
@@ -224,29 +219,13 @@ class HourlyForecastCard(BoxLayout):
             padding=[dp(4), 0],
         )
 
-        for entry in entries:
-            try:
-                h = datetime.fromisoformat(entry.time).hour
-                is_now = (h == active_hour)
-            except Exception:
-                is_now = False
-
+        for i, entry in enumerate(entries):
+            # When first_is_now=True the first entry IS now; never anything before it.
+            is_now = (i == 0 and first_is_now)
             slot = HourlySlot(entry=entry, is_now=is_now)
             row.add_widget(slot)
 
         row.width = (dp(58) + dp(4)) * len(entries) + dp(8)
         scroll.add_widget(row)
         self.add_widget(scroll)
-
-        # Auto-scroll to NOW slot
-        if entries:
-            try:
-                now_idx = next(
-                    i for i, e in enumerate(entries)
-                    if datetime.fromisoformat(e.time).hour == active_hour
-                )
-                total_w = (dp(58) + dp(4)) * len(entries) + dp(8)
-                scroll_x = max(0, (now_idx * (dp(58) + dp(4))) / total_w)
-                Clock.schedule_once(lambda dt: setattr(scroll, 'scroll_x', scroll_x), 0.1)
-            except StopIteration:
-                pass
+        # Always start at the left (NOW is first, nothing to scroll to)

@@ -123,15 +123,18 @@ class _LocationCard(BoxLayout):
         inner.bind(on_touch_up=self._content_touch_up)
         self._container.add_widget(self._content_card)
 
-        # ── Delete button ─────────────────────────────────────────
-        del_btn = FloatLayout(size_hint=(None, 1), width=_DEL_W)
+        # ── Delete button — BoxLayout clips text within bounds ───────
+        del_btn = BoxLayout(size_hint=(None, 1), width=_DEL_W)
         with del_btn.canvas.before:
             Color(0.92, 0.18, 0.18, 1)
             _db = Rectangle(pos=del_btn.pos, size=del_btn.size)
         del_btn.bind(pos=lambda w, v, r=_db: setattr(r, 'pos', v),
                      size=lambda w, v, r=_db: setattr(r, 'size', v))
-        del_btn.add_widget(Label(text='Delete', font_size=sp(15), bold=True,
-                                 color=(1, 1, 1, 1), size_hint=(1, 1)))
+        lbl_del = Label(text='Delete', font_size=sp(14), bold=True,
+                        color=(1, 1, 1, 1), size_hint=(1, 1),
+                        halign='center', valign='middle')
+        lbl_del.bind(size=lbl_del.setter('text_size'))
+        del_btn.add_widget(lbl_del)
         del_btn.bind(on_touch_up=self._delete_touch)
         self._container.add_widget(del_btn)
 

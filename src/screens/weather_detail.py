@@ -346,10 +346,10 @@ class WeatherDetailWidget(FloatLayout):
         # ── Summary text card ────────────────────────
         add_card(self._build_summary_card(w))
 
-        # ── Hourly strip ─────────────────────────────
-        today_hours = w.today_hourly()
-        if today_hours:
-            add_card(HourlyForecastCard(entries=today_hours), h=dp(178))
+        # ── Hourly strip — always starts at NOW, rolls 24h forward ──
+        next_hours = w.next_24_hours()
+        if next_hours:
+            add_card(HourlyForecastCard(entries=next_hours, first_is_now=True), h=dp(178))
 
         # ── 10-day forecast ───────────────────────────
         if w.daily:
@@ -614,29 +614,7 @@ class WeatherCarouselScreen(MDScreen):
         )
         root.add_widget(list_btn)
 
-        # ── Debug: background review button (temp, bottom-right) ──────
-        debug_btn = MDIconButton(
-            icon='image-search',
-            theme_icon_color='Custom',
-            icon_color=(1, 0.85, 0.2, 0.85),
-            icon_size=dp(20),
-            size_hint=(None, None),
-            size=(dp(38), dp(38)),
-            pos_hint={'right': 0.99, 'top': 0.14},
-            on_release=self._open_bg_review,
-        )
-        root.add_widget(debug_btn)
-
         self.add_widget(root)
-
-    def _open_bg_review(self, *_):
-        from src.screens.bg_review import BgReviewScreen
-        if not self.manager.has_screen('bg_review'):
-            self.manager.add_widget(BgReviewScreen(
-                name='bg_review',
-                on_close=lambda: setattr(self.manager, 'current', 'weather_carousel'),
-            ))
-        self.manager.current = 'bg_review'
 
     def _update_arrows(self, *_):
         try:
