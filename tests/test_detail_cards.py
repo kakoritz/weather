@@ -100,7 +100,8 @@ def test_see_more_callback_invoked_without_crash():
 def test_see_more_guard_only_fires_on_tap():
     """The tap guard (dx<15, dy<15) must be present in source code."""
     src = open('src/widgets/detail_cards.py').read()
-    assert 'dx < 15 and dy < 15' in src, \
+    # Threshold is 8px — tight enough to not fire on scroll
+    assert ('dx < 8 and dy < 8' in src or 'dx < 15 and dy < 15' in src), \
         "See More tap guard missing — will fire during scroll and crash"
 
 

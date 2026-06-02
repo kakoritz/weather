@@ -197,7 +197,7 @@ class _LocationCard(BoxLayout):
             Color(0.92, 0.18, 0.18, 1)
             # Right corners rounded to match card radius
             _db = RoundedRectangle(pos=del_box.pos, size=del_box.size,
-                                    radius=[0, _CARD_RADIUS, _CARD_RADIUS, 0])
+                                    radius=[_CARD_RADIUS, _CARD_RADIUS, _CARD_RADIUS, _CARD_RADIUS])
         del_box.bind(pos=lambda w, v, r=_db: setattr(r, 'pos', v),
                      size=lambda w, v, r=_db: setattr(r, 'size', v))
         del_box.add_widget(MDIconButton(icon='trash-can', theme_icon_color='Custom',
@@ -263,8 +263,8 @@ class _DropdownMenu(FloatLayout):
             ('thermometer', 'Fahrenheit °F', lambda: self._set_unit('F', storage, on_close)),
             ('thermometer', 'Celsius °C',    lambda: self._set_unit('C', storage, on_close)),
             None,
-            ('bell-outline',        'Notifications',   lambda: None),   # stub — stays open
-            ('flag-outline',        'Report an Issue', lambda: None),   # stub — stays open
+            ('bell-outline',        'Notifications',   on_close),
+            ('flag-outline',        'Report an Issue', on_close),
         ]
         # Count actual items (not separators)
         n_items = sum(1 for x in ITEMS if x is not None)
@@ -307,12 +307,13 @@ class _DropdownMenu(FloatLayout):
             row = BoxLayout(orientation='horizontal', size_hint_y=None,
                             height=ITEM_H, padding=[dp(14), 0], spacing=dp(10))
 
-            icon_lbl = Label(
-                text='',  # icon via text not widget — prevents touch consumption
-                font_size=dp(18), color=(0.30, 0.70, 1, 1) if is_checked else (1, 1, 1, 0.55),
-                size_hint=(None, 1), width=dp(30),
+            # MDIconButton with disabled=True — shows icon, doesn't eat touch
+            icon_w = MDIconButton(
+                icon=icon, theme_icon_color='Custom', disabled=True,
+                icon_color=(0.30, 0.70, 1, 1) if is_checked else (1, 1, 1, 0.55),
+                icon_size=dp(18), size_hint=(None, 1), width=dp(30),
             )
-            row.add_widget(icon_lbl)
+            row.add_widget(icon_w)
 
             lbl = Label(text=label, font_size=sp(15), bold=False,
                         color=(0.30, 0.70, 1, 1) if is_checked else (1, 1, 1, 0.90),
@@ -321,22 +322,20 @@ class _DropdownMenu(FloatLayout):
             row.add_widget(lbl)
 
             if is_checked:
-                ck = Label(text='✓', font_size=sp(16),
-                           color=(0.30, 0.70, 1, 1),
-                           size_hint=(None, 1), width=dp(30),
-                           halign='right', valign='middle')
+                ck = MDIconButton(
+                    icon='check', theme_icon_color='Custom', disabled=True,
+                    icon_color=(0.30, 0.70, 1, 1), icon_size=dp(18),
+                    size_hint=(None, 1), width=dp(30),
+                )
                 row.add_widget(ck)
 
-            _start_row = [None]
+            from kivy.uix.button import Button as _Btn
             _cb = cb
-            def _rd(w, t, s=_start_row):
-                if w.collide_point(*t.pos): s[0] = (t.x, t.y); return True
-            def _ru(w, t, s=_start_row, fn=_cb):
-                if s[0] is None: return
-                dx = abs(t.x-s[0][0]); dy = abs(t.y-s[0][1]); s[0] = None
-                if dx < 20 and dy < 20 and w.collide_point(*t.pos):
-                    fn(); return True
-            row.bind(on_touch_down=_rd, on_touch_up=_ru)
+            # Transparent full-row Button on top — captures all touches
+            tap = _Btn(size_hint=(1,1), background_normal='',
+                       background_color=(0,0,0,0),
+                       on_release=lambda b, fn=_cb: fn())
+            row.add_widget(tap)
             menu.add_widget(row)
 
         self.add_widget(menu)
@@ -544,7 +543,7 @@ class LocationListScreen(MDScreen):
             btn_size=(btn.width, btn.height),
             storage=self._storage,
             on_close=self._close_menu,
-            on_edit_list=self._close_menu,
+            on_edit_list=self._toggle_edit,
             current_units=units,
         )
         menu.size = (Window.width, Window.height)

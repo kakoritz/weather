@@ -97,9 +97,9 @@ class _BaseCard(BoxLayout):
         from kivy.uix.floatlayout import FloatLayout as _FL
 
         # ── Header (fixed height, never wraps) ──────────────────────
-        # Header: icon 50% further from left edge, text 50% larger
+        # Header: icon starts at same left as footer text (dp12), text sp21
         hdr = _BL(orientation='horizontal', size_hint=(1, None), height=dp(36),
-                  padding=[dp(16), 0, dp(8), 0], spacing=dp(8))
+                  padding=[dp(12), 0, dp(8), 0], spacing=dp(6))
         with hdr.canvas.before:
             Color(1, 1, 1, 0.07)
             _hr = Rectangle(pos=hdr.pos, size=hdr.size)
@@ -153,7 +153,7 @@ class _BaseCard(BoxLayout):
                 def _sm_up(w, t, s=_sm_start, fn=see_more_fn):
                     if s[0] is None: return
                     dx = abs(t.x - s[0][0]); dy = abs(t.y - s[0][1]); s[0] = None
-                    if dx < 15 and dy < 15 and w.collide_point(*t.pos):
+                    if dx < 8 and dy < 8 and w.collide_point(*t.pos):
                         try: fn()
                         except Exception: pass
                 ftr.bind(on_touch_down=_sm_down, on_touch_up=_sm_up)
@@ -180,7 +180,7 @@ def _see_more_footer(on_tap):
         dy = abs(t.y - _start[0][1])
         _start[0] = None
         # Only fire if it was a real tap (minimal movement)
-        if dx < 15 and dy < 15 and w.collide_point(*t.pos):
+        if dx < 8 and dy < 8 and w.collide_point(*t.pos):
             try: on_tap()
             except Exception: pass
 
@@ -189,50 +189,70 @@ def _see_more_footer(on_tap):
 
 
 class _SlideUpModal(FloatLayout):
-    """Dark gray panel that slides up from bottom (95% of screen height)."""
+    """Solid dark panel from bottom — 95% screen height, rounded top corners."""
 
     def __init__(self, title: str, content_builder, **kwargs):
         super().__init__(size_hint=(1, 1), **kwargs)
-        # Dim overlay
+
+        # Solid dim (not translucent — opaque enough to block content)
         dim = Widget(size_hint=(1, 1))
         with dim.canvas:
-            Color(0, 0, 0, 0.55)
+            Color(0, 0, 0, 0.72)
             _dim = Rectangle(pos=dim.pos, size=dim.size)
         dim.bind(pos=lambda w, v, r=_dim: setattr(r, 'pos', v),
                  size=lambda w, v, r=_dim: setattr(r, 'size', v))
-        dim.bind(on_touch_down=lambda w, t: self._close() if w.collide_point(*t.pos) else None)
         self.add_widget(dim)
 
-        # Panel
+        # Panel — solid background, PROPERLY bound so canvas redraws with layout
         panel = BoxLayout(orientation='vertical',
-                          size_hint=(1, 0.95), pos_hint={'bottom': 1})
+                          size_hint=(1, 0.95), pos_hint={'x': 0, 'y': 0})
         with panel.canvas.before:
-            Color(0.11, 0.13, 0.17, 1)
-            RoundedRectangle(pos=panel.pos, size=panel.size, radius=[dp(20), dp(20), 0, 0])
-        panel.bind(pos=lambda w, v: None)
-        self.add_widget(panel)
+            Color(0.10, 0.12, 0.17, 1)   # solid, not alpha
+            _pbg = RoundedRectangle(pos=panel.pos, size=panel.size,
+                                    radius=[dp(22), dp(22), 0, 0])
+        # THIS is the critical bind that was missing — canvas must update when layout fires
+        panel.bind(
+            pos=lambda w, v, r=_pbg: setattr(r, 'pos', v),
+            size=lambda w, v, r=_pbg: setattr(r, 'size', v),
+        )
         self._panel = panel
+        self.add_widget(panel)
 
-        # Header
-        hdr = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(52),
-                        padding=[dp(20), 0])
-        hdr.add_widget(Label(text=title, font_size=sp(18), bold=True,
-                             color=(1, 1, 1, 0.95), size_hint=(1, 1),
+        # Tap dim to close (only if outside panel)
+        def _dim_tap(w, t):
+            if not panel.collide_point(*t.pos):
+                self._close()
+        dim.bind(on_touch_up=_dim_tap)
+
+        # Header row
+        hdr = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(56),
+                        padding=[dp(20), dp(4)])
+        hdr.add_widget(Label(text=title, font_size=sp(20), bold=True,
+                             color=(1, 1, 1, 1), size_hint=(1, 1),
                              halign='left', valign='middle'))
         from kivymd.uix.button import MDIconButton
         close_btn = MDIconButton(icon='close', theme_icon_color='Custom',
-                                 icon_color=(1, 1, 1, 0.70), icon_size=dp(22),
+                                 icon_color=(1, 1, 1, 0.80), icon_size=dp(24),
                                  size_hint=(None, None), size=(dp(44), dp(44)),
                                  on_release=lambda *_: self._close())
         hdr.add_widget(close_btn)
         panel.add_widget(hdr)
 
-        # Content
+        # Thin separator
+        sep = Widget(size_hint_y=None, height=dp(1))
+        with sep.canvas:
+            Color(1, 1, 1, 0.12)
+            _sr = Rectangle(pos=sep.pos, size=sep.size)
+        sep.bind(pos=lambda w, v, r=_sr: setattr(r, 'pos', v),
+                 size=lambda w, v, r=_sr: setattr(r, 'size', (v[0], 1)))
+        panel.add_widget(sep)
+
+        # Scrollable content
         from kivy.uix.scrollview import ScrollView
         sv = ScrollView(do_scroll_y=True, do_scroll_x=False, bar_width=0,
                         size_hint=(1, 1))
         inner = BoxLayout(orientation='vertical', size_hint_y=None,
-                          padding=[dp(20), dp(8), dp(20), dp(40)])
+                          padding=[dp(20), dp(12), dp(20), dp(40)], spacing=dp(8))
         inner.bind(minimum_height=inner.setter('height'))
         content_builder(inner)
         sv.add_widget(inner)
