@@ -269,22 +269,19 @@ class _DropdownMenu(FloatLayout):
         n_seps   = sum(1 for x in ITEMS if x is None)
         MENU_H = n_items * ITEM_H + n_seps * dp(1) + dp(10)
 
-        # pos_hint relative to FloatLayout (= Window) — FloatLayout.do_layout applies
-        # this reliably regardless of when/how the widget tree is resized.
-        x_hint = menu_x / _W.width
-        y_hint = menu_y / _W.height
-
+        # Absolute pos — FloatLayout.do_layout never changes pos when pos_hint is absent.
+        # The parent FloatLayout must be explicitly sized to Window dimensions (done in
+        # _do_open_menu) so the dim widget fills the screen correctly.
         menu = BoxLayout(orientation='vertical',
                          size_hint=(None, None),
                          size=(MENU_W, MENU_H),
-                         pos_hint={'x': x_hint, 'y': y_hint},
+                         pos=(menu_x, menu_y),
                          padding=[0, dp(6)])
         self._menu_rect = menu
 
         with menu.canvas.before:
             Color(0.12, 0.14, 0.20, 0.97)
             _mbg = RoundedRectangle(pos=menu.pos, size=menu.size, radius=[dp(12)])
-        # Canvas background MUST follow when FloatLayout repositions the card via pos_hint
         menu.bind(
             pos=lambda w, v, r=_mbg: setattr(r, 'pos', v),
             size=lambda w, v, r=_mbg: setattr(r, 'size', v),
@@ -563,6 +560,11 @@ class LocationListScreen(MDScreen):
         menu_x = max(dp(8), min(menu_x, Window.width - MENU_W - dp(8)))
         menu_y = max(dp(8), menu_y)
 
+        from kivy.core.window import Logger
+        Logger.info(f'MENU: btn to_window bx={bx:.0f} by={by:.0f} '
+                    f'menu_x={menu_x:.0f} menu_y={menu_y:.0f} '
+                    f'Win={Window.width}x{Window.height} MENU_H={MENU_H:.0f}')
+
         menu = _DropdownMenu(
             menu_x=menu_x, menu_y=menu_y,
             storage=self._storage,
@@ -570,6 +572,9 @@ class LocationListScreen(MDScreen):
             on_edit_list=self._toggle_edit,
             current_units=units,
         )
+        # Explicit size so dim fills Window and layout uses correct reference frame
+        menu.size = (Window.width, Window.height)
+        menu.pos = (0, 0)
         self._menu_widget = menu
         Window.add_widget(menu)
 
