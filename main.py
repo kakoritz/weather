@@ -160,20 +160,9 @@ class WeatherApp(MDApp):
         carousel.remove_location(zip_code)
         self._rebuild_list_screen()
 
-        # If no locations remain, go back to add screen
+        # If no locations remain, stay on location_list (shows empty + search bar)
         if not self.storage.load_locations():
-            self.sm.remove_widget(self.sm.get_screen('weather_carousel'))
-            if self.sm.has_screen('location_list'):
-                self.sm.remove_widget(self.sm.get_screen('location_list'))
-            if self.sm.has_screen('add_location'):
-                self.sm.remove_widget(self.sm.get_screen('add_location'))
-
-            add_screen = AddLocationScreen(
-                name='add_location',
-                on_location_added=self._on_first_location_added,
-            )
-            self.sm.add_widget(add_screen)
-            self.sm.current = 'add_location'
+            self.sm.current = 'location_list'
 
     def _rebuild_list_screen(self):
         carousel = self.sm.get_screen('weather_carousel')

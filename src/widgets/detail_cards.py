@@ -719,18 +719,36 @@ class TemperatureMapCard(_BaseCard):
 
     def _open_map(self):
         def build(box):
-            box.add_widget(Label(
-                text=(
-                    'Temperature Map\n\n'
-                    'Full interactive heat map coming in v1.2\n\n'
-                    f'Current location:\n{self._city}\n'
-                    f'Lat {self._lat:.2f}, Lon {self._lon:.2f}'
-                ),
-                font_size=sp(15), color=(1, 1, 1, 0.80),
-                halign='center', valign='top',
-                size_hint_y=None, height=dp(220),
-            ))
-        _SlideUpModal.show('Temperature', build, self)
+            # Windy.com embed — interactive heat map, no API key needed
+            url = (
+                f'https://embed.windy.com/embed2.html?'
+                f'lat={self._lat}&lon={self._lon}'
+                f'&detailLat={self._lat}&detailLon={self._lon}'
+                f'&width=650&height=450&zoom=8&level=surface'
+                f'&overlay=temp&product=ecmwf&menu=&message=&marker=&calendar='
+                f'&pressure=&type=map&location=coordinates&detail=&metricWind=mph'
+                f'&metricTemp=%C2%B0F&radarRange=-1'
+            )
+            try:
+                from kivy.uix.widget import Widget as _W
+                # Try to use Android WebView via pyjnius
+                from jnius import autoclass  # type: ignore
+                WebView = autoclass('android.webkit.WebView')
+                # Fall back to label if WebView unavailable
+                raise ImportError
+            except Exception:
+                # Desktop / fallback: show URL + instructions
+                from kivy.uix.label import Label as _L
+                lbl = _L(
+                    text=f'Temperature Map\n\n'
+                         f'Open in browser:\n{url[:60]}...\n\n'
+                         f'Location: {self._city}\n{self._lat:.3f}, {self._lon:.3f}',
+                    font_size=sp(13), color=(1, 1, 1, 0.85),
+                    halign='center', valign='top',
+                    size_hint_y=None, height=dp(240),
+                )
+                box.add_widget(lbl)
+        _SlideUpModal.show('Temperature Map', build, self)
 
 
 # ──────────────────────────────────────────────

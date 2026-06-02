@@ -69,11 +69,15 @@ class WeatherDetailWidget(FloatLayout):
         Clock.schedule_once(self._build, 0)
 
     def _draw_sky(self):
-        """Draw or update the sky-blue solid background rectangle."""
+        """Sky-blue background with pitch-black behind it (for rounded hero corners)."""
         self.canvas.before.clear()
         night = is_night()
         col = _NIGHT_SKY if night else _DAY_SKY
         with self.canvas.before:
+            # Pure black fills entire widget — shows at rounded hero corners
+            Color(0, 0, 0, 1)
+            Rectangle(pos=self.pos, size=self.size)
+            # Sky gradient on top (hero stencil will clip to rounded rect)
             Color(*col)
             self._sky_rect = Rectangle(pos=self.pos, size=self.size)
         self.bind(pos=self._update_sky, size=self._update_sky)
@@ -204,8 +208,23 @@ class WeatherDetailWidget(FloatLayout):
         night = is_night()
         HERO_H = dp(260) if night else dp(240)   # -20% from original dp(320/300)
 
-        # ── Hero card — FIXED/STICKY at top, never scrolls ──────────
+        # ── Hero card — rounded all 4 corners; black bleeds behind corners ──
         hero = FloatLayout(size_hint=(1, None), height=HERO_H)
+        # Stencil-clip hero content to rounded rectangle (all 4 corners)
+        from kivy.graphics import StencilPush, StencilUse, StencilUnUse, StencilPop
+        with hero.canvas.before:
+            StencilPush()
+            Color(1, 1, 1, 1)
+            _hero_mask = RoundedRectangle(pos=hero.pos, size=hero.size,
+                                          radius=[dp(18)])
+            StencilUse()
+        hero.bind(
+            pos=lambda w, v, r=_hero_mask: setattr(r, 'pos', v),
+            size=lambda w, v, r=_hero_mask: setattr(r, 'size', v),
+        )
+        with hero.canvas.after:
+            StencilUnUse()
+            StencilPop()
 
         # Photo background via canvas.before texture (most reliable on Android)
         import os
