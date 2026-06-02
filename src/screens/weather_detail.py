@@ -280,18 +280,43 @@ class WeatherDetailWidget(FloatLayout):
         city_lbl.bind(size=city_lbl.setter('text_size'))
         text_layer.add_widget(city_lbl)
 
-        temp_lbl = Label(
-            text=f'{w.current.temp}°',
-            font_size=sp(90),
-            bold=False,
-            color=(1, 1, 1, 1),
-            size_hint_y=None,
-            height=dp(108),
-            halign='center',
-            valign='middle',
-        )
-        temp_lbl.bind(size=temp_lbl.setter('text_size'))
-        text_layer.add_widget(temp_lbl)
+        # Temperature + moon (at night) side by side, centred in the card
+        if night:
+            moon_name, moon_path, moon_illum = get_moon_phase()
+            import os as _os
+            abs_moon = _os.path.join(_os.getcwd(), moon_path)
+            temp_row = BoxLayout(orientation='horizontal', size_hint_y=None,
+                                 height=dp(108))
+            temp_row.add_widget(Widget(size_hint_x=1))
+            # Moon icon — same visual weight as the temperature number
+            if _os.path.exists(abs_moon):
+                moon_big = KivyImage(
+                    source=abs_moon,
+                    size_hint=(None, None),
+                    size=(dp(82), dp(82)),
+                    pos_hint={'center_y': 0.45},   # slightly lower: offset feel
+                )
+                temp_row.add_widget(moon_big)
+                temp_row.add_widget(Widget(size_hint=(None, 1), width=dp(10)))
+            temp_lbl = Label(
+                text=f'{w.current.temp}°',
+                font_size=sp(90), bold=False, color=(1, 1, 1, 1),
+                size_hint=(None, 1), width=dp(160),
+                halign='left', valign='middle',
+            )
+            temp_lbl.bind(size=temp_lbl.setter('text_size'))
+            temp_row.add_widget(temp_lbl)
+            temp_row.add_widget(Widget(size_hint_x=1))
+            text_layer.add_widget(temp_row)
+        else:
+            temp_lbl = Label(
+                text=f'{w.current.temp}°',
+                font_size=sp(90), bold=False, color=(1, 1, 1, 1),
+                size_hint_y=None, height=dp(108),
+                halign='center', valign='middle',
+            )
+            temp_lbl.bind(size=temp_lbl.setter('text_size'))
+            text_layer.add_widget(temp_lbl)
 
         # Condition icon + label side by side
         cond_row = BoxLayout(orientation='horizontal', size_hint_y=None,
@@ -329,28 +354,17 @@ class WeatherDetailWidget(FloatLayout):
             hl_lbl.bind(size=hl_lbl.setter('text_size'))
             text_layer.add_widget(hl_lbl)
 
-        # Moon phase row — always shown at night regardless of weather
+        # Moon phase name + illumination — small text below condition, night only
         if night:
-            moon_name, moon_path, moon_illum = get_moon_phase()
-            import os
-            abs_moon = os.path.join(os.getcwd(), moon_path)
-            moon_row = BoxLayout(orientation='horizontal', size_hint_y=None,
-                                 height=dp(30), spacing=dp(6))
-            moon_row.add_widget(Widget(size_hint_x=1))
-            if os.path.exists(abs_moon):
-                moon_row.add_widget(KivyImage(
-                    source=abs_moon,
-                    size_hint=(None, None), size=(dp(22), dp(22)),
-                ))
-            moon_row.add_widget(Label(
+            moon_name, _mp, moon_illum = get_moon_phase()
+            moon_sub = Label(
                 text=f'{moon_name}  ·  {moon_illum}% illuminated',
-                font_size=sp(13),
-                color=(1, 1, 1, 0.75),
-                size_hint_y=None, height=dp(30),
-                halign='left', valign='middle',
-            ))
-            moon_row.add_widget(Widget(size_hint_x=1))
-            text_layer.add_widget(moon_row)
+                font_size=sp(12), color=(1, 1, 1, 0.65),
+                size_hint_y=None, height=dp(20),
+                halign='center', valign='middle',
+            )
+            moon_sub.bind(size=moon_sub.setter('text_size'))
+            text_layer.add_widget(moon_sub)
 
         hero.add_widget(text_layer)
         self._content.add_widget(hero)

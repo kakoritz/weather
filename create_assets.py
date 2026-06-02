@@ -289,90 +289,60 @@ def make_presplash():
 # ─── app icon ──────────────────────────────────────────────────────────────────
 
 def make_icon():
+    """App icon: solid sky-blue square with a maximally large sun.
+
+    NO rounded-square mask — the entire 512×512 is filled with sky blue.
+    Android's adaptive icon system crops to a circle shape, giving:
+      sky-blue circle → giant sun with rays pushing near the edges.
+    No inner square, no white ring.
+    """
     SIZE = 512
-    MARGIN = 30     # breathing room inside the square
+    CX = CY = SIZE // 2
 
-    # ── background: rounded square, deep-blue gradient ────────────────────────
-    bg = Image.new('RGBA', (SIZE, SIZE), (0, 0, 0, 0))
-    bg_draw = ImageDraw.Draw(bg)
+    # ── Solid sky-blue fill — the whole square becomes the circle bg ──────────
+    img = Image.new('RGBA', (SIZE, SIZE), (52, 152, 235, 255))
 
-    # scanline gradient: deep navy top → cerulean blue bottom
-    for y in range(SIZE):
-        t = y / SIZE
-        r = int(8  + (28  - 8)  * t)
-        g = int(48 + (110 - 48) * t)
-        b = int(118+ (210 - 118)* t)
-        bg_draw.line([(0, y), (SIZE, y)], fill=(r, g, b, 255))
-
-    # clip to rounded square
-    mask = Image.new('L', (SIZE, SIZE), 0)
-    mask_draw = ImageDraw.Draw(mask)
-    CORNER = 90
-    mask_draw.rounded_rectangle([0, 0, SIZE, SIZE], radius=CORNER, fill=255)
-    bg.putalpha(mask)
-
-    img = bg.convert('RGBA')
-
-    # ── sun halo ───────────────────────────────────────────────────────────────
-    CX = SIZE // 2
-    CY = SIZE // 2 + 8   # very slightly below centre feels more grounded
-
-    for r, a in [(230, 20), (190, 38), (155, 62), (125, 95), (100, 138)]:
+    # ── Sun glow ───────────────────────────────────────────────────────────────
+    for r, a in [(240, 12), (210, 25), (180, 45), (155, 75), (130, 110)]:
         glow = Image.new('RGBA', (SIZE, SIZE), (0, 0, 0, 0))
         gd = ImageDraw.Draw(glow)
-        gd.ellipse([CX-r, CY-r, CX+r, CY+r], fill=(255, 225, 80, a))
-        glow = glow.filter(ImageFilter.GaussianBlur(radius=r // 6))
+        gd.ellipse([CX-r, CY-r, CX+r, CY+r], fill=(255, 235, 90, a))
+        glow = glow.filter(ImageFilter.GaussianBlur(radius=r // 5))
         img = Image.alpha_composite(img, glow)
 
-    # ── sun rays ───────────────────────────────────────────────────────────────
-    N_RAYS   = 12
-    R_INNER  = 90
-    R_OUTER  = 215
-    RAY_DEG  = 7    # half-angle of each ray tip
+    # ── Sun rays — large, push near the icon edge ──────────────────────────────
+    RAY_INNER = 155   # just past disc edge
+    RAY_OUTER = 248   # close to 512/2 = 256 edge → rays reach almost to circle rim
+    RAY_HALF  = 7     # degrees, each ray is 14° wide
 
     rays = Image.new('RGBA', (SIZE, SIZE), (0, 0, 0, 0))
     rd = ImageDraw.Draw(rays)
-
-    for i in range(N_RAYS):
-        angle = math.radians(i * (360 / N_RAYS) - 90)
-        al    = angle - math.radians(RAY_DEG)
-        ar    = angle + math.radians(RAY_DEG)
-        bx1 = CX + math.cos(al) * R_INNER
-        by1 = CY + math.sin(al) * R_INNER
-        bx2 = CX + math.cos(ar) * R_INNER
-        by2 = CY + math.sin(ar) * R_INNER
-        tx  = CX + math.cos(angle) * R_OUTER
-        ty  = CY + math.sin(angle) * R_OUTER
+    for i in range(12):
+        angle = math.radians(i * 30 - 90)
+        al = angle - math.radians(RAY_HALF)
+        ar = angle + math.radians(RAY_HALF)
+        bx1 = CX + math.cos(al) * RAY_INNER
+        by1 = CY + math.sin(al) * RAY_INNER
+        bx2 = CX + math.cos(ar) * RAY_INNER
+        by2 = CY + math.sin(ar) * RAY_INNER
+        tx  = CX + math.cos(angle) * RAY_OUTER
+        ty  = CY + math.sin(angle) * RAY_OUTER
         rd.polygon([(bx1, by1), (bx2, by2), (tx, ty)],
-                   fill=(255, 238, 120, 170))
-
-    rays = rays.filter(ImageFilter.GaussianBlur(radius=4))
+                   fill=(255, 248, 160, 200))
+    rays = rays.filter(ImageFilter.GaussianBlur(radius=5))
     img = Image.alpha_composite(img, rays)
 
-    # ── sun disc ───────────────────────────────────────────────────────────────
-    sun_layer = Image.new('RGBA', (SIZE, SIZE), (0, 0, 0, 0))
-    sd = ImageDraw.Draw(sun_layer)
-    R = 88
-
-    # outer glow ring
-    sd.ellipse([CX-R-16, CY-R-16, CX+R+16, CY+R+16], fill=(255, 230, 90, 200))
-    # main disc
-    sd.ellipse([CX-R, CY-R, CX+R, CY+R], fill=(255, 245, 160, 255))
-    # bright core
-    Rc = R // 2
-    sd.ellipse([CX-Rc, CY-Rc, CX+Rc, CY+Rc], fill=(255, 255, 225, 255))
-
-    img = Image.alpha_composite(img, sun_layer)
-
-    # ── composite onto white backing and re-mask ───────────────────────────────
-    final = Image.new('RGBA', (SIZE, SIZE), (255, 255, 255, 0))
-    final = Image.alpha_composite(final, img)
-
-    # re-apply rounded corner mask so edges are clean
-    final.putalpha(mask)
+    # ── Sun disc — 140px radius = 55% of half-icon, as large as possible ──────
+    sun = Image.new('RGBA', (SIZE, SIZE), (0, 0, 0, 0))
+    sd = ImageDraw.Draw(sun)
+    R = 140
+    sd.ellipse([CX-R-20, CY-R-20, CX+R+20, CY+R+20], fill=(255, 230, 80, 210))
+    sd.ellipse([CX-R,    CY-R,    CX+R,    CY+R   ], fill=(255, 248, 140, 255))
+    sd.ellipse([CX-R//2, CY-R//2, CX+R//2, CY+R//2], fill=(255, 255, 230, 255))
+    img = Image.alpha_composite(img, sun)
 
     path = os.path.join(ASSETS_DIR, 'icon.png')
-    final.save(path, 'PNG')
+    img.save(path, 'PNG')
     print(f'Created {path}')
 
 

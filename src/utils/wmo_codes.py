@@ -152,35 +152,55 @@ def get_bg_path(code: int, night: bool | None = None) -> str:
 import math as _math
 
 
-def get_moon_phase():
-    """Return (phase_name, icon_path, illumination_pct) for today.
+_MOON_FILES = [
+    'wi-moon-new',
+    'wi-moon-waxing-crescent-1', 'wi-moon-waxing-crescent-2',
+    'wi-moon-waxing-crescent-3', 'wi-moon-waxing-crescent-4',
+    'wi-moon-waxing-crescent-5', 'wi-moon-waxing-crescent-6',
+    'wi-moon-first-quarter',
+    'wi-moon-waxing-gibbous-1', 'wi-moon-waxing-gibbous-2',
+    'wi-moon-waxing-gibbous-3', 'wi-moon-waxing-gibbous-4',
+    'wi-moon-waxing-gibbous-5', 'wi-moon-waxing-gibbous-6',
+    'wi-moon-full',
+    'wi-moon-waning-gibbous-1', 'wi-moon-waning-gibbous-2',
+    'wi-moon-waning-gibbous-3', 'wi-moon-waning-gibbous-4',
+    'wi-moon-waning-gibbous-5', 'wi-moon-waning-gibbous-6',
+    'wi-moon-third-quarter',
+    'wi-moon-waning-crescent-1', 'wi-moon-waning-crescent-2',
+    'wi-moon-waning-crescent-3', 'wi-moon-waning-crescent-4',
+    'wi-moon-waning-crescent-5', 'wi-moon-waning-crescent-6',
+]
 
-    Uses the synodic period (29.53059 days) from a known new moon reference.
-    Accurate to within a few hours — sufficient for display purposes.
+_MOON_NAMES = [
+    'New Moon',
+    'Waxing Crescent', 'Waxing Crescent', 'Waxing Crescent',
+    'Waxing Crescent', 'Waxing Crescent', 'Waxing Crescent',
+    'First Quarter',
+    'Waxing Gibbous', 'Waxing Gibbous', 'Waxing Gibbous',
+    'Waxing Gibbous', 'Waxing Gibbous', 'Waxing Gibbous',
+    'Full Moon',
+    'Waning Gibbous', 'Waning Gibbous', 'Waning Gibbous',
+    'Waning Gibbous', 'Waning Gibbous', 'Waning Gibbous',
+    'Third Quarter',
+    'Waning Crescent', 'Waning Crescent', 'Waning Crescent',
+    'Waning Crescent', 'Waning Crescent', 'Waning Crescent',
+]
+
+
+def get_moon_phase():
+    """Return (phase_name, icon_path, illumination_pct) using 28 phases.
+
+    Maps lunar age (0-29.53 days) to one of 28 distinct icons from the
+    Erik Flowers weather-icons set stored in assets/icons/moon/.
     """
     from datetime import datetime as _dt
-    # Known new moon: 2000-01-06 18:14 UTC
-    _ref = _dt(2000, 1, 6, 18, 14)
+    _ref = _dt(2000, 1, 6, 18, 14)   # Known new moon 2000-01-06
     _synodic = 29.53059
     age = (_dt.utcnow() - _ref).total_seconds() / 86400 % _synodic
 
+    idx = min(27, int(age * 28 / _synodic))
     illum = round((1 - _math.cos(_math.pi * 2 * age / _synodic)) / 2 * 100)
 
-    if age < 1.85:
-        icon, name = 'moon-new',             'New Moon'
-    elif age < 7.38:
-        icon, name = 'moon-waxing-crescent', 'Waxing Crescent'
-    elif age < 9.22:
-        icon, name = 'moon-first-quarter',   'First Quarter'
-    elif age < 14.77:
-        icon, name = 'moon-waxing-gibbous',  'Waxing Gibbous'
-    elif age < 16.61:
-        icon, name = 'moon-full',            'Full Moon'
-    elif age < 22.15:
-        icon, name = 'moon-waning-gibbous',  'Waning Gibbous'
-    elif age < 23.99:
-        icon, name = 'moon-last-quarter',    'Last Quarter'
-    else:
-        icon, name = 'moon-waning-crescent', 'Waning Crescent'
-
-    return name, f'assets/icons/{icon}.png', illum
+    fname = _MOON_FILES[idx]
+    name  = _MOON_NAMES[idx]
+    return name, f'assets/icons/moon/{fname}.png', illum
