@@ -289,12 +289,14 @@ class _DropdownMenu:
             size=lambda w, v, r=_cbg: setattr(r, 'size', v),
         )
 
-        # Tap outside card → close
+        # Always consume the touch. If outside card, also close the menu.
+        # Without return True for in-card touches, unhandled taps (padding gaps)
+        # fall through to the location card beneath and trigger navigation.
         _card_ref = self._card
         def _dim_touch(w, touch):
             if not _card_ref.collide_point(*touch.pos):
                 on_close()
-                return True
+            return True
         self._dim.bind(on_touch_down=_dim_touch)
 
         # ── Menu items ────────────────────────────────────────────────

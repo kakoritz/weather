@@ -749,7 +749,14 @@ class TemperatureMapCard(_BaseCard):
                 s.setDomStorageEnabled(True)
                 wv.loadUrl(url)
                 dlg.setContentView(wv)
-                dlg.getWindow().setLayout(-1, -1)   # MATCH_PARENT
+                # 95% width, 85% height — leaves edge visible so tap-outside closes it
+                from kivy.core.window import Window as _kw
+                dlg.getWindow().setLayout(
+                    int(_kw.width * 0.95),
+                    int(_kw.height * 0.85),
+                )
+                dlg.setCancelable(True)          # back button closes
+                dlg.setCanceledOnTouchOutside(True)  # tap outside closes
                 dlg.show()
 
             _open_webview()

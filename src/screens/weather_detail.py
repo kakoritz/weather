@@ -780,6 +780,14 @@ class WeatherCarouselScreen(MDScreen):
             pass
 
     def _go_to_list(self, *_):
+        # Refresh list screen with latest weather data before showing it.
+        # The list is built at startup when weather_map is empty; this ensures
+        # the temperature/H:L cards are populated with data that loaded since then.
+        try:
+            ls = self.manager.get_screen('location_list')
+            ls.refresh(self._locations, self._weather_map)
+        except Exception:
+            pass
         self.manager.current = 'location_list'
 
     @property
