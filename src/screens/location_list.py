@@ -497,7 +497,7 @@ class LocationListScreen(MDScreen):
         self._ac_box.size = (ac_w, ac_h)
         self._ac_box.pos = (ac_x, ac_y)
         self._ac_box.clear_widgets()
-        Window.add_widget(self._ac_box, index=0)  # top of Window stack
+        Window.add_widget(self._ac_box)  # top of Window stack
 
         for r in results:
             row = BoxLayout(orientation='horizontal', size_hint_y=None,
@@ -550,7 +550,7 @@ class LocationListScreen(MDScreen):
         menu.size = (Window.width, Window.height)
         menu.pos = (0, 0)
         self._menu_widget = menu
-        Window.add_widget(menu, index=0)
+        Window.add_widget(menu)
 
     def _close_menu(self):
         self._menu_open = False

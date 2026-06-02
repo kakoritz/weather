@@ -97,8 +97,9 @@ class _BaseCard(BoxLayout):
         from kivy.uix.floatlayout import FloatLayout as _FL
 
         # ── Header (fixed height, never wraps) ──────────────────────
-        hdr = _BL(orientation='horizontal', size_hint=(1, None), height=dp(34),
-                  padding=[dp(10), 0], spacing=dp(6))
+        # Header: icon 50% further from left edge, text 50% larger
+        hdr = _BL(orientation='horizontal', size_hint=(1, None), height=dp(36),
+                  padding=[dp(16), 0, dp(8), 0], spacing=dp(8))
         with hdr.canvas.before:
             Color(1, 1, 1, 0.07)
             _hr = Rectangle(pos=hdr.pos, size=hdr.size)
@@ -107,11 +108,11 @@ class _BaseCard(BoxLayout):
 
         from kivymd.uix.button import MDIconButton
         hdr.add_widget(MDIconButton(icon=title_icon, theme_icon_color='Custom',
-                                    icon_color=(1, 1, 1, 0.65), icon_size=dp(16),
-                                    size_hint=(None, 1), width=dp(26)))
-        # Header text — same size/color as condition label in hero card
-        hdr_lbl = Label(text=title_text, font_size=sp(14), bold=False,
-                        color=(1, 1, 1, 0.80), size_hint=(1, 1),
+                                    icon_color=(1, 1, 1, 0.70), icon_size=dp(20),
+                                    size_hint=(None, 1), width=dp(32)))
+        # Header text — 50% larger than before (was sp14 → now sp21)
+        hdr_lbl = Label(text=title_text, font_size=sp(21), bold=False,
+                        color=(1, 1, 1, 0.85), size_hint=(1, 1),
                         halign='left', valign='middle')
         hdr_lbl.bind(size=hdr_lbl.setter('text_size'))
         hdr.add_widget(hdr_lbl)
@@ -249,10 +250,9 @@ class _SlideUpModal(FloatLayout):
     def show(title: str, content_builder, target_widget):
         """Add modal directly to Window — always works regardless of widget tree."""
         from kivy.core.window import Window
-        modal = _SlideUpModal(title=title, content_builder=content_builder,
-                              size_hint=(1, 1),
-                              size=(Window.width, Window.height),
-                              pos=(0, 0))
+        # Don't pass size_hint — _SlideUpModal.__init__ already sets size_hint=(1,1)
+        # Don't pass index — older Kivy Window.add_widget doesn't accept it
+        modal = _SlideUpModal(title=title, content_builder=content_builder)
         Window.add_widget(modal)
 
 

@@ -38,9 +38,9 @@ KV = """
 <HourlySlot>:
     orientation: 'vertical'
     size_hint: None, 1
-    width: dp(58)
-    spacing: dp(4)
-    padding: [dp(6), dp(4)]
+    width: dp(62)
+    spacing: dp(3)
+    padding: [dp(6), dp(6), dp(6), dp(6)]
 """
 
 Builder.load_string(KV)
