@@ -255,7 +255,7 @@ class _DropdownMenu(FloatLayout):
         self.add_widget(dim)
 
         # Menu card — positioned below+left of the button
-        MENU_W = dp(200)
+        MENU_W = dp(280)
         ITEM_H = dp(46)
         ITEMS = [
             ('playlist-edit', 'Edit List',       on_edit_list),
@@ -302,24 +302,25 @@ class _DropdownMenu(FloatLayout):
             is_checked = (label == 'Fahrenheit °F' and current_units == 'F') or \
                          (label == 'Celsius °C'    and current_units == 'C')
 
-            # Full-row touch: use on_touch_down start + on_touch_up confirm
-            # MDIconButton must NOT consume touch — use disabled=True on it
-            row = BoxLayout(orientation='horizontal', size_hint_y=None,
-                            height=ITEM_H, padding=[dp(14), 0], spacing=dp(10))
+            # FloatLayout row: content BoxLayout + transparent Button overlay
+            # The Button must be in a FloatLayout so it gets full area, not zero
+            row_fl = FloatLayout(size_hint_y=None, height=ITEM_H)
 
-            # MDIconButton with disabled=True — shows icon, doesn't eat touch
+            inner = BoxLayout(orientation='horizontal', size_hint=(1, 1),
+                              padding=[dp(14), 0], spacing=dp(10))
+
             icon_w = MDIconButton(
                 icon=icon, theme_icon_color='Custom', disabled=True,
                 icon_color=(0.30, 0.70, 1, 1) if is_checked else (1, 1, 1, 0.55),
                 icon_size=dp(18), size_hint=(None, 1), width=dp(30),
             )
-            row.add_widget(icon_w)
+            inner.add_widget(icon_w)
 
             lbl = Label(text=label, font_size=sp(15), bold=False,
                         color=(0.30, 0.70, 1, 1) if is_checked else (1, 1, 1, 0.90),
-                        size_hint=(1, 1), halign='left', valign='middle')
-            lbl.bind(size=lbl.setter('text_size'))
-            row.add_widget(lbl)
+                        size_hint=(1, 1), halign='left', valign='middle',
+                        text_size=(MENU_W - dp(80), None))
+            inner.add_widget(lbl)
 
             if is_checked:
                 ck = MDIconButton(
@@ -327,16 +328,18 @@ class _DropdownMenu(FloatLayout):
                     icon_color=(0.30, 0.70, 1, 1), icon_size=dp(18),
                     size_hint=(None, 1), width=dp(30),
                 )
-                row.add_widget(ck)
+                inner.add_widget(ck)
 
+            row_fl.add_widget(inner)
+
+            # Transparent Button covers ENTIRE FloatLayout — guaranteed full-row tap
             from kivy.uix.button import Button as _Btn
             _cb = cb
-            # Transparent full-row Button on top — captures all touches
-            tap = _Btn(size_hint=(1,1), background_normal='',
-                       background_color=(0,0,0,0),
+            tap = _Btn(size_hint=(1, 1), pos_hint={'x': 0, 'y': 0},
+                       background_normal='', background_color=(0, 0, 0, 0),
                        on_release=lambda b, fn=_cb: fn())
-            row.add_widget(tap)
-            menu.add_widget(row)
+            row_fl.add_widget(tap)
+            menu.add_widget(row_fl)
 
         self.add_widget(menu)
 

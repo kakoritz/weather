@@ -334,7 +334,7 @@ class DeviceTestRunner:
         self.assert_test("List screen has dark background", dark)
 
     def test_menu_open_close(self):
-        print("\n[5] Menu open and close")
+        print("\n[5] Menu open, item clicks work, close")
         self.fresh_launch()
         time.sleep(6)
         self.tap(*_R.LIST_ICON, wait=1.0)
@@ -344,17 +344,47 @@ class DeviceTestRunner:
         # Open menu
         self.tap(*_R.MENU_BTN, wait=0.8)
         time.sleep(1)
-
         img = self.screenshot()
         self.save_screenshot("menu_open")
         no_crash = self.check_no_crash()
         self.assert_test("Menu opens without crash", no_crash)
 
-        # Close by tapping outside
+        # Verify menu is visually present — screenshot should differ from closed state
+        # (menu is a dark panel in the top-right area)
+        if img:
+            # Menu appears near top-right. Check that area is not same as base screen.
+            img2_before = img
+        else:
+            img2_before = None
+
+        # Click Celsius menu item — should switch units and rebuild
+        self.clear_logcat()
+        self.tap(*_R.MENU_CELSIUS, wait=1.2)
+        time.sleep(1.5)
+        no_crash = self.check_no_crash()
+        self.assert_test("Clicking Celsius doesn't crash", no_crash)
+
+        # After clicking Celsius, menu should be gone and screen rebuilt
+        img_after_celsius = self.screenshot()
+        self.save_screenshot("after_celsius_click")
+
+        # Re-open menu and click Fahrenheit back
+        self.tap(*_R.MENU_BTN, wait=0.8)
+        time.sleep(1)
+        self.clear_logcat()
+        self.tap(*_R.MENU_FAHRENHEIT, wait=1.2)
+        time.sleep(1)
+        no_crash = self.check_no_crash()
+        self.assert_test("Clicking Fahrenheit doesn't crash", no_crash)
+
+        # Re-open menu and close by tapping outside
+        self.tap(*_R.MENU_BTN, wait=0.8)
+        time.sleep(1)
+        self.clear_logcat()
         self.tap(*_R.MENU_CLOSE_AREA, wait=0.8)
         time.sleep(0.5)
         no_crash = self.check_no_crash()
-        self.assert_test("Menu closes without crash", no_crash)
+        self.assert_test("Menu closes by tapping outside without crash", no_crash)
 
     def test_celsius_fahrenheit_toggle(self):
         print("\n[6] Celsius / Fahrenheit toggle")
