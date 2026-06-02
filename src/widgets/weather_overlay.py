@@ -1,15 +1,16 @@
-"""Weather particle overlays — transparent, animated, sits between background and text.
+"""Weather particle overlays — transparent, animated.
 
-Every effect is drawn with semi-transparent white geometry (not icons, not cartoons):
-  rain       — thin diagonal streaks at 15°, 12-18dp long, ~18% opacity
-  drizzle    — sparser, shorter, slower rain
-  heavy_rain — denser, longer, faster rain
-  thunderstorm — heavy rain + rare full-screen white flash
-  snow       — small circles drifting down with sinusoidal sway
-  sun rays   — slow-rotating radial beams from upper area, ~5-8% opacity
-  stars      — twinkling fixed dots (night conditions)
-  fog        — wide slow-moving horizontal bands, ~8% opacity
-  overcast   — no overlay (gradient does all the work)
+Sits between the gradient background and the text layer.
+All effects use semi-transparent geometry only — no cartoon icons.
+
+  clear_day / sun        — glowing disc + 8 short tapered rays, slowly rotating
+  sun_light (partly day) — same sun at lower opacity + soft cloud wisps drifting
+  stars (night)          — twinkling white dots
+  rain / drizzle / heavy — diagonal white streaks at 15 degrees
+  thunderstorm           — heavy rain + rare white screen flash
+  snow                   — small white dots drifting with sinusoidal sway
+  fog                    — large radial mist halos, very low opacity
+  none (overcast)        — gradient does the job, no overlay
 """
 import math
 import random
@@ -22,11 +23,8 @@ from kivy.uix.widget import Widget
 _FPS = 30
 
 
-# ─── Condition → overlay type ──────────────────────────────────────────────
-
 def overlay_for_condition(condition_name: str) -> str:
-    """Map wmo_codes.get_condition() result to overlay type."""
-    mapping = {
+    return {
         'clear':         'sun',
         'partly_cloudy': 'sun_light',
         'overcast':      'none',
@@ -36,8 +34,7 @@ def overlay_for_condition(condition_name: str) -> str:
         'heavy_rain':    'heavy_rain',
         'snow':          'snow',
         'thunderstorm':  'thunderstorm',
-    }
-    return mapping.get(condition_name, 'none')
+    }.get(condition_name, 'none')
 
 
 def overlay_for_night(condition_name: str, night: bool) -> str:
@@ -47,18 +44,16 @@ def overlay_for_night(condition_name: str, night: bool) -> str:
     return ov
 
 
-# ─── Overlay widget ─────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 
 class WeatherOverlay(Widget):
-    """Transparent widget that draws animated weather particles."""
-
     def __init__(self, overlay_type: str = 'none', **kwargs):
         super().__init__(**kwargs)
         self._type = overlay_type
         self._t = 0.0
         self._particles: list = []
         self._clock_ev = None
-        self.bind(size=self._on_resize, pos=self._redraw)
+        self.bind(size=self._on_resize)
 
     def _on_resize(self, *_):
         if self.width < 10:
@@ -76,29 +71,24 @@ class WeatherOverlay(Widget):
         self._t += dt
         _update_particles(self._type, self._particles, dt, self._t,
                           self.width, self.height)
-        self._redraw()
-
-    def _redraw(self, *_):
         self.canvas.clear()
-        if self._type == 'none' or not self._particles:
-            return
-        with self.canvas:
-            _draw_particles(self._type, self._particles, self._t,
-                            self.x, self.y, self.width, self.height)
+        if self._type != 'none' and self.width > 10:
+            with self.canvas:
+                _draw(self._type, self._particles, self._t,
+                      self.x, self.y, self.width, self.height)
 
 
-# ─── Particle factories ─────────────────────────────────────────────────────
+# ─── particle factories ───────────────────────────────────────────────────────
 
-def _make_particles(ptype: str, w: float, h: float) -> list:
+def _make_particles(ptype, w, h):
     if ptype in ('rain', 'drizzle', 'heavy_rain', 'thunderstorm'):
-        counts = {'drizzle': 30, 'rain': 60, 'heavy_rain': 90, 'thunderstorm': 80}
-        speeds = {'drizzle': (280, 360), 'rain': (420, 540),
-                  'heavy_rain': (520, 650), 'thunderstorm': (500, 630)}
-        lens   = {'drizzle': (dp(8), dp(12)), 'rain': (dp(12), dp(18)),
-                  'heavy_rain': (dp(16), dp(22)), 'thunderstorm': (dp(15), dp(21))}
-        n = counts[ptype]
-        lo_s, hi_s = speeds[ptype]
-        lo_l, hi_l = lens[ptype]
+        specs = {
+            'drizzle':     (28,  (260, 350), (dp(8),  dp(12))),
+            'rain':        (55,  (410, 530), (dp(13), dp(19))),
+            'heavy_rain':  (85,  (510, 640), (dp(17), dp(24))),
+            'thunderstorm':(80,  (490, 620), (dp(16), dp(23))),
+        }
+        n, (lo_s, hi_s), (lo_l, hi_l) = specs[ptype]
         return [{'x': random.uniform(0, w), 'y': random.uniform(0, h),
                  'speed': random.uniform(lo_s, hi_s),
                  'length': random.uniform(lo_l, hi_l),
@@ -107,140 +97,202 @@ def _make_particles(ptype: str, w: float, h: float) -> list:
 
     if ptype == 'snow':
         return [{'x': random.uniform(0, w), 'y': random.uniform(0, h),
-                 'speed': random.uniform(30, 65),
+                 'speed': random.uniform(28, 62),
                  'r': random.uniform(dp(1.5), dp(3.0)),
                  'alpha': random.uniform(0.25, 0.65),
                  'phase': random.uniform(0, math.pi * 2),
-                 'sway': random.uniform(dp(18), dp(38))}
+                 'sway': random.uniform(dp(16), dp(36))}
                 for _ in range(55)]
 
     if ptype in ('sun', 'sun_light'):
-        n = 10 if ptype == 'sun' else 8
-        return [{'angle_offset': i * (math.pi * 2 / n),
-                 'alpha_base': random.uniform(0.04, 0.10 if ptype == 'sun' else 0.06)}
-                for i in range(n)]
+        # Sun position: upper-right area so it doesn't cover city/temp text
+        sun_x = w * 0.72
+        sun_y = h * 0.68
+        clouds = []
+        if ptype == 'sun_light':
+            # 2 soft cloud clusters that drift left→right
+            for i in range(2):
+                clouds.append({
+                    'type': 'cloud',
+                    'x': random.uniform(-w * 0.3, w * 0.5),
+                    'y': random.uniform(h * 0.30, h * 0.75),
+                    'speed': random.uniform(9, 17),
+                    'alpha': random.uniform(0.07, 0.13),
+                    'scale': random.uniform(0.9, 1.4),
+                })
+        return [{'type': 'sun', 'cx': sun_x, 'cy': sun_y}] + clouds
 
     if ptype == 'stars':
-        return [{'x': random.uniform(0.04, 0.96) * w,
-                 'y': random.uniform(0.06, 0.94) * h,
-                 'r': random.uniform(dp(0.8), dp(1.8)),
+        return [{'x': random.uniform(0.03, 0.97) * w,
+                 'y': random.uniform(0.04, 0.96) * h,
+                 'r': random.uniform(dp(0.7), dp(1.8)),
                  'phase': random.uniform(0, math.pi * 2),
-                 'period': random.uniform(1.8, 4.0)}
-                for _ in range(45)]
+                 'period': random.uniform(1.6, 4.2)}
+                for _ in range(48)]
 
     if ptype == 'fog':
-        return [{'x': random.uniform(-w * 0.8, 0),
-                 'y': random.uniform(h * 0.05, h * 0.90),
-                 'speed': random.uniform(8, 18),
-                 'alpha': random.uniform(0.06, 0.13),
-                 'bw': random.uniform(w * 0.7, w * 1.3),
-                 'bh': random.uniform(dp(35), dp(75))}
-                for _ in range(5)]
+        # Radial mist halos — NOT horizontal bands
+        return [{'x': random.uniform(0.1, 0.9) * w,
+                 'y': random.uniform(0.1, 0.9) * h,
+                 'r': random.uniform(dp(70), dp(130)),
+                 'vx': random.uniform(-6, 6),
+                 'vy': random.uniform(-4, 4),
+                 'alpha': random.uniform(0.04, 0.09)}
+                for _ in range(7)]
 
     return []
 
 
-# ─── Per-frame update ────────────────────────────────────────────────────────
+# ─── per-frame update ─────────────────────────────────────────────────────────
 
 def _update_particles(ptype, particles, dt, t, w, h):
     if ptype in ('rain', 'drizzle', 'heavy_rain', 'thunderstorm'):
-        dx_per_unit = math.tan(math.radians(15))
+        dx_ratio = math.tan(math.radians(15))
         for p in particles:
             p['y'] -= p['speed'] * dt
-            p['x'] -= p['speed'] * dx_per_unit * dt
-            if p['y'] < -dp(25):
+            p['x'] -= p['speed'] * dx_ratio * dt
+            if p['y'] < -dp(28):
                 p['y'] = h + random.uniform(0, dp(30))
                 p['x'] = random.uniform(-w * 0.25, w * 1.25)
 
     elif ptype == 'snow':
         for p in particles:
             p['y'] -= p['speed'] * dt
-            p['x'] += math.sin(t * 0.9 + p['phase']) * p['sway'] * dt
+            p['x'] += math.sin(t * 0.85 + p['phase']) * p['sway'] * dt
             if p['y'] < -dp(10):
                 p['y'] = h + dp(10)
                 p['x'] = random.uniform(0, w)
 
+    elif ptype in ('sun', 'sun_light'):
+        for p in particles:
+            if p['type'] == 'cloud':
+                p['x'] += p['speed'] * dt
+                if p['x'] > w + dp(120):
+                    p['x'] = -dp(140)
+                    p['y'] = random.uniform(h * 0.30, h * 0.75)
+
     elif ptype == 'fog':
         for p in particles:
-            p['x'] += p['speed'] * dt
-            if p['x'] > w + p['bw']:
-                p['x'] = -p['bw'] * random.uniform(0.8, 1.4)
-                p['y'] = random.uniform(h * 0.05, h * 0.90)
+            p['x'] += p['vx'] * dt
+            p['y'] += p['vy'] * dt
+            # Soft bounce off edges
+            if p['x'] < -p['r'] or p['x'] > w + p['r']:
+                p['vx'] *= -1
+            if p['y'] < -p['r'] or p['y'] > h + p['r']:
+                p['vy'] *= -1
 
 
-# ─── Canvas drawing ─────────────────────────────────────────────────────────
+# ─── drawing ──────────────────────────────────────────────────────────────────
 
-def _draw_particles(ptype, particles, t, ox, oy, w, h):
-    """Draw all particles into the current canvas context."""
+def _draw(ptype, particles, t, ox, oy, w, h):
 
-    # ── Rain family ──────────────────────────────────────────────────────────
+    # ── Rain family ────────────────────────────────────────────────────────
     if ptype in ('rain', 'drizzle', 'heavy_rain', 'thunderstorm'):
-
-        # Lightning flash (thunderstorm only)
+        # Lightning flash
         if ptype == 'thunderstorm':
-            cycle = 5.5
-            phase = (t % cycle) / cycle
-            if phase < 0.025:
-                fa = min(0.50, phase / 0.012 * 0.50)
-                Color(1, 1, 1, fa)
-                Rectangle(pos=(ox, oy), size=(w, h))
-            elif phase < 0.045:
-                fa = max(0, (0.045 - phase) / 0.020 * 0.50)
-                Color(1, 1, 1, fa)
-                Rectangle(pos=(ox, oy), size=(w, h))
+            cycle, phase = 5.8, (t % 5.8) / 5.8
+            if phase < 0.026:
+                fa = min(0.48, phase / 0.013 * 0.48)
+                Color(1, 1, 1, fa); Rectangle(pos=(ox, oy), size=(w, h))
+            elif phase < 0.048:
+                fa = max(0, (0.048 - phase) / 0.022 * 0.48)
+                Color(1, 1, 1, fa); Rectangle(pos=(ox, oy), size=(w, h))
 
-        # Rain streaks — thin diagonal white lines
-        angle = math.radians(-15)
-        cos_a = math.cos(angle + math.pi / 2)
-        sin_a = math.sin(angle + math.pi / 2)
-        lw = dp(0.7) if ptype == 'drizzle' else dp(1.0)
+        ang = math.radians(-15)
+        cos_a, sin_a = math.cos(ang + math.pi/2), math.sin(ang + math.pi/2)
+        lw = dp(0.7) if ptype == 'drizzle' else dp(1.1)
         for p in particles:
-            dx = cos_a * p['length']
-            dy = sin_a * p['length']
+            dx, dy = cos_a * p['length'], sin_a * p['length']
             Color(1, 1, 1, p['alpha'])
-            Line(points=[ox + p['x'], oy + p['y'],
-                         ox + p['x'] + dx, oy + p['y'] + dy],
-                 width=lw)
+            Line(points=[ox+p['x'], oy+p['y'],
+                         ox+p['x']+dx, oy+p['y']+dy], width=lw)
 
-    # ── Snow ─────────────────────────────────────────────────────────────────
+    # ── Snow ──────────────────────────────────────────────────────────────
     elif ptype == 'snow':
         for p in particles:
             Color(1, 1, 1, p['alpha'])
             r = p['r']
-            Ellipse(pos=(ox + p['x'] - r, oy + p['y'] - r), size=(r * 2, r * 2))
+            Ellipse(pos=(ox+p['x']-r, oy+p['y']-r), size=(r*2, r*2))
 
-    # ── Sun rays ─────────────────────────────────────────────────────────────
+    # ── Sun (clear day / partly cloudy day) ───────────────────────────────
     elif ptype in ('sun', 'sun_light'):
-        # Rays originate from upper-centre of the card
-        cx = ox + w * 0.50
-        cy = oy + h * 0.82
-        ray_len = max(w, h) * 1.5
-        pulse = 0.5 + 0.5 * math.sin(t * 0.35)
-        beam_half = math.radians(5)
-        for p in particles:
-            base_angle = p['angle_offset'] + t * 0.05
-            alpha = p['alpha_base'] * (0.55 + 0.45 * pulse)
-            Color(1, 0.97, 0.80, alpha)
-            # Draw a thin beam (two lines bracketing the centre angle)
-            for spread in (-beam_half, beam_half):
-                a = base_angle + spread
-                Line(points=[cx, cy,
-                              cx + math.cos(a) * ray_len,
-                              cy + math.sin(a) * ray_len],
-                     width=dp(1.0))
+        pulse = 0.93 + 0.07 * math.sin(t * 0.4)
+        sun_alpha = 1.0 if ptype == 'sun' else 0.65
 
-    # ── Stars ─────────────────────────────────────────────────────────────────
+        for p in particles:
+            if p['type'] == 'sun':
+                _draw_sun(p['cx'] + ox, p['cy'] + oy, t, pulse, sun_alpha)
+            elif p['type'] == 'cloud':
+                _draw_cloud_wisp(ox + p['x'], oy + p['y'], p['scale'], p['alpha'])
+
+    # ── Stars (night) ─────────────────────────────────────────────────────
     elif ptype == 'stars':
         for p in particles:
-            alpha = 0.25 + 0.55 * (0.5 + 0.5 * math.sin(
+            alpha = 0.20 + 0.60 * (0.5 + 0.5 * math.sin(
                 t / p['period'] * math.pi * 2 + p['phase']))
             Color(1, 1, 1, alpha)
             r = p['r']
-            Ellipse(pos=(ox + p['x'] - r, oy + p['y'] - r), size=(r * 2, r * 2))
+            Ellipse(pos=(ox+p['x']-r, oy+p['y']-r), size=(r*2, r*2))
 
-    # ── Fog ──────────────────────────────────────────────────────────────────
+    # ── Fog ───────────────────────────────────────────────────────────────
     elif ptype == 'fog':
         for p in particles:
-            Color(1, 1, 1, p['alpha'])
-            Rectangle(pos=(ox + p['x'], oy + p['y'] - p['bh'] / 2),
-                      size=(p['bw'], p['bh']))
+            # Soft radial halo using concentric rings
+            for ring in range(4):
+                scale = 1.0 + ring * 0.35
+                fade = p['alpha'] * (1.0 - ring * 0.22)
+                r = p['r'] * scale
+                Color(1, 1, 1, fade)
+                Ellipse(pos=(ox+p['x']-r, oy+p['y']-r), size=(r*2, r*2))
+
+
+def _draw_sun(cx, cy, t, pulse, alpha_scale):
+    """Draw a proper sun: layered glow + short tapered rays."""
+    rot = t * 0.18   # very slow rotation
+
+    # ── Outer glow rings ─────────────────────────────────────────
+    for r_dp, a in [(dp(62), 0.04), (dp(46), 0.09), (dp(34), 0.18), (dp(24), 0.32)]:
+        r = r_dp * pulse
+        Color(1, 0.95, 0.70, a * alpha_scale)
+        Ellipse(pos=(cx-r, cy-r), size=(r*2, r*2))
+
+    # ── 8 short rays ─────────────────────────────────────────────
+    inner_r = dp(19) * pulse
+    outer_r = dp(34) * pulse
+    ray_w   = dp(2.2)
+    for i in range(8):
+        angle = rot + i * (math.pi / 4)
+        x1 = cx + math.cos(angle) * inner_r
+        y1 = cy + math.sin(angle) * inner_r
+        x2 = cx + math.cos(angle) * outer_r
+        y2 = cy + math.sin(angle) * outer_r
+        Color(1, 0.96, 0.72, 0.55 * alpha_scale)
+        Line(points=[x1, y1, x2, y2], width=ray_w)
+
+    # ── Core disc ────────────────────────────────────────────────
+    core_r = dp(16) * pulse
+    Color(1, 0.99, 0.90, 0.95 * alpha_scale)
+    Ellipse(pos=(cx-core_r, cy-core_r), size=(core_r*2, core_r*2))
+    # Inner bright centre
+    c2 = dp(9) * pulse
+    Color(1, 1, 0.97, 1.0 * alpha_scale)
+    Ellipse(pos=(cx-c2, cy-c2), size=(c2*2, c2*2))
+
+
+def _draw_cloud_wisp(cx, cy, scale, alpha):
+    """Draw a soft cloud wisp: overlapping white ellipses, very translucent."""
+    bw = dp(90) * scale
+    bh = dp(42) * scale
+    # Cluster of ellipses that together look like a soft cloud puff
+    puffs = [
+        (0,    0,    1.00, bw,    bh),
+        (-0.38, 0.12, 0.72, bw*0.8, bh*0.8),
+        ( 0.38, 0.08, 0.72, bw*0.8, bh*0.8),
+        (-0.18,-0.18, 0.55, bw*0.6, bh*0.7),
+        ( 0.20,-0.15, 0.55, bw*0.6, bh*0.7),
+    ]
+    for dx_f, dy_f, s, pw, ph in puffs:
+        ex = cx + dx_f * bw - pw/2
+        ey = cy + dy_f * bh - ph/2
+        Color(1, 1, 1, alpha * s)
+        Ellipse(pos=(ex, ey), size=(pw, ph))
