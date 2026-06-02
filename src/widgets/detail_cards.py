@@ -97,20 +97,21 @@ class _BaseCard(BoxLayout):
         from kivy.uix.floatlayout import FloatLayout as _FL
 
         # ── Header (fixed height, never wraps) ──────────────────────
-        hdr = _BL(orientation='horizontal', size_hint=(1, None), height=dp(30),
-                  padding=[dp(12), 0], spacing=dp(6))
+        hdr = _BL(orientation='horizontal', size_hint=(1, None), height=dp(34),
+                  padding=[dp(10), 0], spacing=dp(6))
         with hdr.canvas.before:
-            Color(1, 1, 1, 0.06)
+            Color(1, 1, 1, 0.07)
             _hr = Rectangle(pos=hdr.pos, size=hdr.size)
         hdr.bind(pos=lambda w, v, r=_hr: setattr(r, 'pos', v),
                  size=lambda w, v, r=_hr: setattr(r, 'size', v))
 
         from kivymd.uix.button import MDIconButton
         hdr.add_widget(MDIconButton(icon=title_icon, theme_icon_color='Custom',
-                                    icon_color=(1, 1, 1, 0.50), icon_size=dp(14),
-                                    size_hint=(None, 1), width=dp(20)))
-        hdr_lbl = Label(text=title_text.upper(), font_size=sp(10), bold=False,
-                        color=(1, 1, 1, 0.50), size_hint=(1, 1),
+                                    icon_color=(1, 1, 1, 0.65), icon_size=dp(16),
+                                    size_hint=(None, 1), width=dp(26)))
+        # Header text — same size/color as condition label in hero card
+        hdr_lbl = Label(text=title_text, font_size=sp(14), bold=False,
+                        color=(1, 1, 1, 0.80), size_hint=(1, 1),
                         halign='left', valign='middle')
         hdr_lbl.bind(size=hdr_lbl.setter('text_size'))
         hdr.add_widget(hdr_lbl)
@@ -145,20 +146,44 @@ class _BaseCard(BoxLayout):
                            width=dp(80), halign='right', valign='middle')
                 sm.bind(size=sm.setter('text_size'))
                 ftr.add_widget(sm)
-                ftr.bind(on_touch_up=lambda w, t, fn=see_more_fn:
-                         fn() if w.collide_point(*t.pos) else None)
+                _sm_start = [None]
+                def _sm_down(w, t, s=_sm_start):
+                    if w.collide_point(*t.pos): s[0] = (t.x, t.y)
+                def _sm_up(w, t, s=_sm_start, fn=see_more_fn):
+                    if s[0] is None: return
+                    dx = abs(t.x - s[0][0]); dy = abs(t.y - s[0][1]); s[0] = None
+                    if dx < 15 and dy < 15 and w.collide_point(*t.pos):
+                        try: fn()
+                        except Exception: pass
+                ftr.bind(on_touch_down=_sm_down, on_touch_up=_sm_up)
             self.add_widget(ftr)
 
 
 def _see_more_footer(on_tap):
-    """Footer button — 'See More  ›' tappable line at the bottom of a card."""
+    """Footer 'See More ›' — only fires on actual taps, not during scroll."""
     from kivy.uix.boxlayout import BoxLayout as _BL
     row = _BL(orientation='horizontal', size_hint_y=None, height=dp(24))
     lbl = Label(text='See More  ›', font_size=sp(12), color=(1, 1, 1, 0.55),
                 size_hint=(1, 1), halign='right', valign='middle')
     lbl.bind(size=lbl.setter('text_size'))
     row.add_widget(lbl)
-    row.bind(on_touch_up=lambda w, t: on_tap() if w.collide_point(*t.pos) else None)
+
+    _start = [None]
+
+    def _down(w, t):
+        if w.collide_point(*t.pos):
+            _start[0] = (t.x, t.y)
+    def _up(w, t):
+        if _start[0] is None: return
+        dx = abs(t.x - _start[0][0])
+        dy = abs(t.y - _start[0][1])
+        _start[0] = None
+        # Only fire if it was a real tap (minimal movement)
+        if dx < 15 and dy < 15 and w.collide_point(*t.pos):
+            try: on_tap()
+            except Exception: pass
+
+    row.bind(on_touch_down=_down, on_touch_up=_up)
     return row
 
 

@@ -305,25 +305,26 @@ class WeatherDetailWidget(FloatLayout):
             temp_lbl.bind(size=temp_lbl.setter('text_size'))
             text_layer.add_widget(temp_lbl)
 
-        # Condition icon + label side by side
+        # Condition: icon + label on ONE line, full width, centered, no wrapping
         cond_row = BoxLayout(orientation='horizontal', size_hint_y=None,
-                             height=dp(36), spacing=dp(8))
+                             height=dp(36), spacing=dp(6))
         cond_row.add_widget(Widget(size_hint_x=1))
         icon_img = KivyImage(
             source=get_icon_path(code, night),
-            size_hint=(None, None), size=(dp(36), dp(36)),
+            size_hint=(None, None), size=(dp(30), dp(30)),
         )
         cond_row.add_widget(icon_img)
         cond_lbl = Label(
             text=get_label(code),
             font_size=sp(20),
+            bold=False,
             color=(1, 1, 1, 0.95),
-            size_hint_y=None,
-            height=dp(36),
+            size_hint=(None, 1),
+            width=dp(220),   # fixed wide enough for longest label, never wraps
             halign='left',
             valign='middle',
         )
-        cond_lbl.bind(size=cond_lbl.setter('text_size'))
+        # Do NOT bind text_size — use fixed width so it never wraps
         cond_row.add_widget(cond_lbl)
         cond_row.add_widget(Widget(size_hint_x=1))
         text_layer.add_widget(cond_row)

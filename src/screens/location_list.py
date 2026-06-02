@@ -142,64 +142,62 @@ class _LocationCard(BoxLayout):
                 size=lambda w, v, r=_ov: setattr(r, 'size', v))
         self._cc.add_widget(ov)
 
-        # Text
-        inner = FloatLayout(size_hint=(1, 1), pos_hint={'x': 0, 'y': 0})
+        # Text — proper BoxLayout for consistent alignment
+        inner = BoxLayout(orientation='horizontal', size_hint=(1, 1),
+                          pos_hint={'x': 0, 'y': 0},
+                          padding=[dp(14), dp(10), dp(10), dp(10)])
 
-        def _lbl(text, fs, bold, alpha, sx, sy, w_dp, h_dp, align):
-            l = Label(text=text, font_size=fs, bold=bold, color=(1, 1, 1, alpha),
-                      size_hint=(None, None), size=(dp(w_dp), dp(h_dp)),
-                      pos_hint=dict(zip(
-                          (['x', 'top'] if 'top' in str(sy) else ['x', 'y']),
-                          [sx, sy]
-                      )),
-                      halign=align, valign='middle')
-            l.bind(size=l.setter('text_size'))
-            return l
-
-        L = 0.04   # left margin fraction
-        R = 0.97   # right margin fraction
-
-        inner.add_widget(Label(text=location.city, font_size=sp(23), bold=True,
-                               color=(1, 1, 1, 1), size_hint=(None, None),
-                               size=(dp(220), dp(30)),
-                               pos_hint={'x': L, 'top': 0.97},
-                               halign='left', valign='middle'))
-        inner.add_widget(Label(text=datetime.now().strftime('%I:%M %p').lstrip('0'),
-                               font_size=sp(13), bold=False, color=(1, 1, 1, 1),
-                               size_hint=(None, None), size=(dp(140), dp(20)),
-                               pos_hint={'x': L, 'top': 0.65},
-                               halign='left', valign='middle'))
+        left = BoxLayout(orientation='vertical', size_hint=(1, 1), spacing=dp(1))
+        city_lbl = Label(text=location.city, font_size=sp(22), bold=True,
+                         color=(1, 1, 1, 1), size_hint_y=None, height=dp(28),
+                         halign='left', valign='middle')
+        city_lbl.bind(size=city_lbl.setter('text_size'))
+        left.add_widget(city_lbl)
+        time_lbl = Label(text=datetime.now().strftime('%I:%M %p').lstrip('0'),
+                         font_size=sp(13), bold=False, color=(1, 1, 1, 0.80),
+                         size_hint_y=None, height=dp(18),
+                         halign='left', valign='middle')
+        time_lbl.bind(size=time_lbl.setter('text_size'))
+        left.add_widget(time_lbl)
+        left.add_widget(Widget(size_hint_y=1))
         if weather:
-            inner.add_widget(Label(
-                text=_c_or_f(weather.current.temp, units),
-                font_size=sp(46), bold=False, color=(1, 1, 1, 1),
-                size_hint=(None, None), size=(dp(110), dp(62)),
-                pos_hint={'right': R, 'top': 1.02},
-                halign='right', valign='middle'))
-            inner.add_widget(Label(
-                text=get_label(weather.current.code),
-                font_size=sp(14), bold=False, color=(1, 1, 1, 1),
-                size_hint=(None, None), size=(dp(200), dp(22)),
-                pos_hint={'x': L, 'y': 0.04},
-                halign='left', valign='middle'))
-            inner.add_widget(Label(
-                text=f'H:{_c_or_f(weather.today_high() or 0, units)}  '
+            cond_lbl = Label(text=get_label(weather.current.code),
+                             font_size=sp(14), bold=False, color=(1, 1, 1, 0.90),
+                             size_hint_y=None, height=dp(20),
+                             halign='left', valign='middle')
+            cond_lbl.bind(size=cond_lbl.setter('text_size'))
+            left.add_widget(cond_lbl)
+        inner.add_widget(left)
+        if weather:
+            right = BoxLayout(orientation='vertical', size_hint=(None, 1),
+                              width=dp(88), spacing=dp(0))
+            temp_lbl = Label(text=_c_or_f(weather.current.temp, units),
+                             font_size=sp(42), bold=False, color=(1, 1, 1, 1),
+                             size_hint=(1, 1), halign='right', valign='middle')
+            temp_lbl.bind(size=temp_lbl.setter('text_size'))
+            right.add_widget(temp_lbl)
+            hl_lbl = Label(
+                text=f'H:{_c_or_f(weather.today_high() or 0, units)}\n'
                      f'L:{_c_or_f(weather.today_low() or 0, units)}',
-                font_size=sp(13), bold=False, color=(1, 1, 1, 1),
-                size_hint=(None, None), size=(dp(130), dp(20)),
-                pos_hint={'right': R, 'y': 0.04},
-                halign='right', valign='middle'))
+                font_size=sp(12), bold=False, color=(1, 1, 1, 0.80),
+                size_hint=(1, None), height=dp(32),
+                halign='right', valign='middle')
+            hl_lbl.bind(size=hl_lbl.setter('text_size'))
+            right.add_widget(hl_lbl)
+            inner.add_widget(right)
 
         self._cc.add_widget(inner)
         inner.bind(on_touch_down=self._content_down)
         inner.bind(on_touch_up=self._content_up)
         self._container.add_widget(self._cc)
 
-        # ── Delete zone ─────────────────────────────────────────────
+        # ── Delete zone — rounded on the RIGHT side only ────────────
         del_box = BoxLayout(size_hint=(None, 1), width=_DEL_W)
         with del_box.canvas.before:
             Color(0.92, 0.18, 0.18, 1)
-            _db = Rectangle(pos=del_box.pos, size=del_box.size)
+            # Right corners rounded to match card radius
+            _db = RoundedRectangle(pos=del_box.pos, size=del_box.size,
+                                    radius=[0, _CARD_RADIUS, _CARD_RADIUS, 0])
         del_box.bind(pos=lambda w, v, r=_db: setattr(r, 'pos', v),
                      size=lambda w, v, r=_db: setattr(r, 'size', v))
         del_box.add_widget(MDIconButton(icon='trash-can', theme_icon_color='Custom',
@@ -304,19 +302,18 @@ class _DropdownMenu(FloatLayout):
             is_checked = (label == 'Fahrenheit °F' and current_units == 'F') or \
                          (label == 'Celsius °C'    and current_units == 'C')
 
+            # Full-row touch: use on_touch_down start + on_touch_up confirm
+            # MDIconButton must NOT consume touch — use disabled=True on it
             row = BoxLayout(orientation='horizontal', size_hint_y=None,
                             height=ITEM_H, padding=[dp(14), 0], spacing=dp(10))
-            # Subtle hover bg on the row itself
-            with row.canvas.before:
-                Color(0, 0, 0, 0)   # transparent normally
-                Rectangle(pos=row.pos, size=row.size)
 
-            row.add_widget(MDIconButton(
-                icon=icon, theme_icon_color='Custom',
-                icon_color=(0.30, 0.70, 1, 1) if is_checked else (1, 1, 1, 0.55),
-                icon_size=dp(18),
+            icon_lbl = Label(
+                text='',  # icon via text not widget — prevents touch consumption
+                font_size=dp(18), color=(0.30, 0.70, 1, 1) if is_checked else (1, 1, 1, 0.55),
                 size_hint=(None, 1), width=dp(30),
-            ))
+            )
+            row.add_widget(icon_lbl)
+
             lbl = Label(text=label, font_size=sp(15), bold=False,
                         color=(0.30, 0.70, 1, 1) if is_checked else (1, 1, 1, 0.90),
                         size_hint=(1, 1), halign='left', valign='middle')
@@ -324,16 +321,22 @@ class _DropdownMenu(FloatLayout):
             row.add_widget(lbl)
 
             if is_checked:
-                row.add_widget(MDIconButton(
-                    icon='check', theme_icon_color='Custom',
-                    icon_color=(0.30, 0.70, 1, 1), icon_size=dp(16),
-                    size_hint=(None, 1), width=dp(30),
-                ))
+                ck = Label(text='✓', font_size=sp(16),
+                           color=(0.30, 0.70, 1, 1),
+                           size_hint=(None, 1), width=dp(30),
+                           halign='right', valign='middle')
+                row.add_widget(ck)
 
+            _start_row = [None]
             _cb = cb
-            # Bind to the WHOLE row — on_touch_up fires when finger lifts anywhere on row
-            row.bind(on_touch_up=lambda w, t, fn=_cb: (fn(), True)
-                     if w.collide_point(*t.pos) else None)
+            def _rd(w, t, s=_start_row):
+                if w.collide_point(*t.pos): s[0] = (t.x, t.y); return True
+            def _ru(w, t, s=_start_row, fn=_cb):
+                if s[0] is None: return
+                dx = abs(t.x-s[0][0]); dy = abs(t.y-s[0][1]); s[0] = None
+                if dx < 20 and dy < 20 and w.collide_point(*t.pos):
+                    fn(); return True
+            row.bind(on_touch_down=_rd, on_touch_up=_ru)
             menu.add_widget(row)
 
         self.add_widget(menu)
@@ -479,23 +482,22 @@ class LocationListScreen(MDScreen):
         Clock.schedule_once(lambda dt: self._place_ac(results), 0)
 
     def _place_ac(self, results):
+        from kivy.core.window import Window
+        if self._ac_box.parent:
+            self._ac_box.parent.remove_widget(self._ac_box)
         h = self._header
         ITEM_H = dp(46)
         ac_w = h.width - dp(28)
         ac_h = ITEM_H * len(results)
         ac_x = h.x + dp(14)
-        # In Kivy y=0 is BOTTOM. Header bottom edge = h.y.
-        # Autocomplete should start at h.y (just below header) and grow DOWNWARD
-        # (smaller y values = visually lower on screen).
-        ac_y = h.y - ac_h   # top of dropdown = bottom of header; grows down
-        # Ensure it doesn't go off screen
-        from kivy.core.window import Window
-        if ac_y < 0:
-            ac_y = 0
-
+        # h.y = bottom of header in Kivy coords. Dropdown starts there going down.
+        ac_y = h.y - ac_h
+        if ac_y < dp(8):
+            ac_y = dp(8)
         self._ac_box.size = (ac_w, ac_h)
         self._ac_box.pos = (ac_x, ac_y)
         self._ac_box.clear_widgets()
+        Window.add_widget(self._ac_box, index=0)  # top of Window stack
 
         for r in results:
             row = BoxLayout(orientation='horizontal', size_hint_y=None,
@@ -514,6 +516,8 @@ class LocationListScreen(MDScreen):
 
     def _clear_ac(self):
         self._ac_box.clear_widgets()
+        if self._ac_box.parent:
+            self._ac_box.parent.remove_widget(self._ac_box)
         self._ac_box.size = (0, 0)
 
     def _select_result(self, row):
@@ -530,23 +534,29 @@ class LocationListScreen(MDScreen):
         if self._menu_open:
             return
         self._menu_open = True
+        from kivy.core.window import Window
         units = self._storage.get_units() if self._storage else 'F'
         btn = self._menu_btn
+        # Convert button position to Window coordinates
+        btn_window = btn.to_window(btn.x, btn.y)
         menu = _DropdownMenu(
-            btn_pos=(btn.x, btn.y),
+            btn_pos=btn_window,
             btn_size=(btn.width, btn.height),
             storage=self._storage,
             on_close=self._close_menu,
-            on_edit_list=self._close_menu,   # stub — edit mode coming
+            on_edit_list=self._close_menu,
             current_units=units,
         )
+        menu.size = (Window.width, Window.height)
+        menu.pos = (0, 0)
         self._menu_widget = menu
-        self._root.add_widget(menu)
+        Window.add_widget(menu, index=0)
 
     def _close_menu(self):
         self._menu_open = False
         if hasattr(self, '_menu_widget'):
-            self._root.remove_widget(self._menu_widget)
+            if self._menu_widget.parent:
+                self._menu_widget.parent.remove_widget(self._menu_widget)
         # Refresh units and rebuild if changed
         new_units = self._storage.get_units() if self._storage else 'F'
         if new_units != self._units:

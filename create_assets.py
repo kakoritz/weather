@@ -43,7 +43,7 @@ def _gradient_color(y_frac, stops):
 # ─── presplash ─────────────────────────────────────────────────────────────────
 
 def make_presplash():
-    W, H = 1080, 2400
+    W, H = 1440, 3200
 
     # ── sky gradient (scanline) ───────────────────────────────────────────────
     sky = Image.new('RGB', (W, H))
