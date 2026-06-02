@@ -389,7 +389,7 @@ class WeatherDetailWidget(FloatLayout):
         # ── Detail cards grid ─────────────────────────
         add_card(DetailCardsGrid(data=w))
 
-        attrib = Label(text='Weather data: Open-Meteo · OSM',
+        attrib = Label(text='Data provided by Open-Meteo API · openstreetmap.org',
                        font_size=sp(10), color=(1, 1, 1, 0.35),
                        size_hint_y=None, height=dp(18),
                        halign='center', valign='middle')

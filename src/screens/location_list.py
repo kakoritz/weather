@@ -103,10 +103,26 @@ class _LocationCard(BoxLayout):
         self._container = BoxLayout(orientation='horizontal', size_hint=(None, 1))
         self.bind(width=self._on_width)
 
-        # ── Content card with rounded corners ────────────────────────
+        # ── Content card with TRUE rounded corners using stencil clipping ──
         self._cc = FloatLayout(size_hint=(None, 1))
 
-        # Background photo
+        # Stencil: clips ALL children to the rounded rect shape
+        from kivy.graphics import StencilPush, StencilUse, StencilPop, StencilUnUse
+        with self._cc.canvas.before:
+            StencilPush()
+            Color(1, 1, 1, 1)
+            self._cc_stencil = RoundedRectangle(pos=self._cc.pos,
+                                                 size=self._cc.size, radius=[_CARD_RADIUS])
+            StencilUse()
+        self._cc.bind(
+            pos=lambda w, v, r=self._cc_stencil: setattr(r, 'pos', v),
+            size=lambda w, v, r=self._cc_stencil: setattr(r, 'size', v),
+        )
+        with self._cc.canvas.after:
+            StencilUnUse()
+            StencilPop()
+
+        # Background photo (clipped by stencil)
         night = is_night()
         code = weather.current.code if weather else 0
         abs_bg = os.path.join(os.getcwd(), get_bg_path(code, night))
@@ -117,11 +133,11 @@ class _LocationCard(BoxLayout):
             except: pass
             self._cc.add_widget(bg)
 
-        # Rounded overlay clips to card shape
+        # Dark overlay
         ov = Widget(size_hint=(1, 1), pos_hint={'x': 0, 'y': 0})
         with ov.canvas:
             Color(0, 0, 0, 0.40)
-            _ov = RoundedRectangle(pos=ov.pos, size=ov.size, radius=[_CARD_RADIUS])
+            _ov = Rectangle(pos=ov.pos, size=ov.size)
         ov.bind(pos=lambda w, v, r=_ov: setattr(r, 'pos', v),
                 size=lambda w, v, r=_ov: setattr(r, 'size', v))
         self._cc.add_widget(ov)
@@ -140,35 +156,38 @@ class _LocationCard(BoxLayout):
             l.bind(size=l.setter('text_size'))
             return l
 
-        inner.add_widget(Label(text=location.city, font_size=sp(21), bold=True,
+        L = 0.04   # left margin fraction
+        R = 0.97   # right margin fraction
+
+        inner.add_widget(Label(text=location.city, font_size=sp(23), bold=True,
                                color=(1, 1, 1, 1), size_hint=(None, None),
-                               size=(dp(210), dp(28)),
-                               pos_hint={'x': 0.04, 'top': 0.96},
+                               size=(dp(220), dp(30)),
+                               pos_hint={'x': L, 'top': 0.97},
                                halign='left', valign='middle'))
         inner.add_widget(Label(text=datetime.now().strftime('%I:%M %p').lstrip('0'),
-                               font_size=sp(13), bold=False, color=(1, 1, 1, 0.65),
+                               font_size=sp(13), bold=False, color=(1, 1, 1, 1),
                                size_hint=(None, None), size=(dp(140), dp(20)),
-                               pos_hint={'x': 0.04, 'top': 0.65},
+                               pos_hint={'x': L, 'top': 0.65},
                                halign='left', valign='middle'))
         if weather:
             inner.add_widget(Label(
                 text=_c_or_f(weather.current.temp, units),
-                font_size=sp(44), bold=False, color=(1, 1, 1, 1),
-                size_hint=(None, None), size=(dp(100), dp(58)),
-                pos_hint={'right': 0.97, 'top': 1.0},
+                font_size=sp(46), bold=False, color=(1, 1, 1, 1),
+                size_hint=(None, None), size=(dp(110), dp(62)),
+                pos_hint={'right': R, 'top': 1.02},
                 halign='right', valign='middle'))
             inner.add_widget(Label(
                 text=get_label(weather.current.code),
-                font_size=sp(14), bold=False, color=(1, 1, 1, 0.80),
+                font_size=sp(14), bold=False, color=(1, 1, 1, 1),
                 size_hint=(None, None), size=(dp(200), dp(22)),
-                pos_hint={'x': 0.04, 'y': 0.04},
+                pos_hint={'x': L, 'y': 0.04},
                 halign='left', valign='middle'))
             inner.add_widget(Label(
                 text=f'H:{_c_or_f(weather.today_high() or 0, units)}  '
                      f'L:{_c_or_f(weather.today_low() or 0, units)}',
-                font_size=sp(13), bold=False, color=(1, 1, 1, 0.70),
-                size_hint=(None, None), size=(dp(140), dp(20)),
-                pos_hint={'right': 0.97, 'y': 0.04},
+                font_size=sp(13), bold=False, color=(1, 1, 1, 1),
+                size_hint=(None, None), size=(dp(130), dp(20)),
+                pos_hint={'right': R, 'y': 0.04},
                 halign='right', valign='middle'))
 
         self._cc.add_widget(inner)
@@ -241,13 +260,13 @@ class _DropdownMenu(FloatLayout):
         MENU_W = dp(200)
         ITEM_H = dp(46)
         ITEMS = [
-            ('edit', 'Edit List',       on_edit_list),
-            None,   # separator
+            ('playlist-edit', 'Edit List',       on_edit_list),
+            None,
             ('thermometer', 'Fahrenheit °F', lambda: self._set_unit('F', storage, on_close)),
             ('thermometer', 'Celsius °C',    lambda: self._set_unit('C', storage, on_close)),
             None,
-            ('bell',               'Notifications',   on_close),
-            ('alert-circle-outline', 'Report an Issue', on_close),
+            ('bell-outline',        'Notifications',   lambda: None),   # stub — stays open
+            ('flag-outline',        'Report an Issue', lambda: None),   # stub — stays open
         ]
         # Count actual items (not separators)
         n_items = sum(1 for x in ITEMS if x is not None)
@@ -287,10 +306,15 @@ class _DropdownMenu(FloatLayout):
 
             row = BoxLayout(orientation='horizontal', size_hint_y=None,
                             height=ITEM_H, padding=[dp(14), 0], spacing=dp(10))
+            # Subtle hover bg on the row itself
+            with row.canvas.before:
+                Color(0, 0, 0, 0)   # transparent normally
+                Rectangle(pos=row.pos, size=row.size)
 
             row.add_widget(MDIconButton(
                 icon=icon, theme_icon_color='Custom',
-                icon_color=(1, 1, 1, 0.60), icon_size=dp(18),
+                icon_color=(0.30, 0.70, 1, 1) if is_checked else (1, 1, 1, 0.55),
+                icon_size=dp(18),
                 size_hint=(None, 1), width=dp(30),
             ))
             lbl = Label(text=label, font_size=sp(15), bold=False,
@@ -306,7 +330,8 @@ class _DropdownMenu(FloatLayout):
                     size_hint=(None, 1), width=dp(30),
                 ))
 
-            _cb = cb  # capture
+            _cb = cb
+            # Bind to the WHOLE row — on_touch_up fires when finger lifts anywhere on row
             row.bind(on_touch_up=lambda w, t, fn=_cb: (fn(), True)
                      if w.collide_point(*t.pos) else None)
             menu.add_widget(row)
@@ -454,13 +479,19 @@ class LocationListScreen(MDScreen):
         Clock.schedule_once(lambda dt: self._place_ac(results), 0)
 
     def _place_ac(self, results):
-        # Get header pos to find where search bar is on screen
         h = self._header
         ITEM_H = dp(46)
         ac_w = h.width - dp(28)
         ac_h = ITEM_H * len(results)
         ac_x = h.x + dp(14)
-        ac_y = h.y + dp(8)   # just below the header bottom edge
+        # In Kivy y=0 is BOTTOM. Header bottom edge = h.y.
+        # Autocomplete should start at h.y (just below header) and grow DOWNWARD
+        # (smaller y values = visually lower on screen).
+        ac_y = h.y - ac_h   # top of dropdown = bottom of header; grows down
+        # Ensure it doesn't go off screen
+        from kivy.core.window import Window
+        if ac_y < 0:
+            ac_y = 0
 
         self._ac_box.size = (ac_w, ac_h)
         self._ac_box.pos = (ac_x, ac_y)
