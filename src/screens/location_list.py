@@ -271,9 +271,13 @@ class _DropdownMenu(FloatLayout):
         n_seps   = sum(1 for x in ITEMS if x is None)
         MENU_H = n_items * ITEM_H + n_seps * dp(1) + dp(10)
 
-        # Position: right-align with button, below it
+        # btn_pos[1] is the TOP of the button in window coords.
+        # Menu drops DOWN from there (smaller y = visually lower in Kivy).
         mx = max(dp(8), btn_pos[0] + btn_size[0] - MENU_W)
-        my = btn_pos[1] - MENU_H - dp(4)
+        my = btn_pos[1] - MENU_H - dp(8)  # dp(8) gap below button top
+        # Clamp so menu doesn't go off screen bottom
+        from kivy.core.window import Window as _W
+        my = max(dp(10), min(my, _W.height - MENU_H - dp(10)))
 
         menu = BoxLayout(orientation='vertical',
                          size_hint=(None, None),
@@ -539,10 +543,12 @@ class LocationListScreen(MDScreen):
         from kivy.core.window import Window
         units = self._storage.get_units() if self._storage else 'F'
         btn = self._menu_btn
-        # Convert button position to Window coordinates
-        btn_window = btn.to_window(btn.x, btn.y)
+        # btn.to_window(0,0) → bottom-left of btn in window coords
+        # Add btn.height to get the TOP edge so menu drops DOWN from button
+        _bx, _by = btn.to_window(0, 0)
+        btn_top_in_window = (_bx, _by + btn.height)
         menu = _DropdownMenu(
-            btn_pos=btn_window,
+            btn_pos=btn_top_in_window,
             btn_size=(btn.width, btn.height),
             storage=self._storage,
             on_close=self._close_menu,
