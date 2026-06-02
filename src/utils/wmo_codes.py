@@ -145,3 +145,42 @@ def get_bg_path(code: int, night: bool | None = None) -> str:
     day_bg, night_bg = _BG_MAP.get(cond, ('clear_day', 'clear_night'))
     name = night_bg if night else day_bg
     return f'assets/backgrounds/{name}.jpg'
+
+
+# ─── Moon phase ──────────────────────────────────────────────────────────────
+
+import math as _math
+
+
+def get_moon_phase():
+    """Return (phase_name, icon_path, illumination_pct) for today.
+
+    Uses the synodic period (29.53059 days) from a known new moon reference.
+    Accurate to within a few hours — sufficient for display purposes.
+    """
+    from datetime import datetime as _dt
+    # Known new moon: 2000-01-06 18:14 UTC
+    _ref = _dt(2000, 1, 6, 18, 14)
+    _synodic = 29.53059
+    age = (_dt.utcnow() - _ref).total_seconds() / 86400 % _synodic
+
+    illum = round((1 - _math.cos(_math.pi * 2 * age / _synodic)) / 2 * 100)
+
+    if age < 1.85:
+        icon, name = 'moon-new',             'New Moon'
+    elif age < 7.38:
+        icon, name = 'moon-waxing-crescent', 'Waxing Crescent'
+    elif age < 9.22:
+        icon, name = 'moon-first-quarter',   'First Quarter'
+    elif age < 14.77:
+        icon, name = 'moon-waxing-gibbous',  'Waxing Gibbous'
+    elif age < 16.61:
+        icon, name = 'moon-full',            'Full Moon'
+    elif age < 22.15:
+        icon, name = 'moon-waning-gibbous',  'Waning Gibbous'
+    elif age < 23.99:
+        icon, name = 'moon-last-quarter',    'Last Quarter'
+    else:
+        icon, name = 'moon-waning-crescent', 'Waning Crescent'
+
+    return name, f'assets/icons/{icon}.png', illum

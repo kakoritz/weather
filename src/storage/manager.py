@@ -7,7 +7,8 @@ from typing import Optional
 from src.models.location import Location
 from src.models.weather import WeatherData
 
-CACHE_TTL_SECONDS = 600  # 10 minutes
+CACHE_TTL_SECONDS = 600   # 10 minutes — normal refresh
+CACHE_STALE_SECONDS = 1800  # 30 minutes — force-refresh on app open if older
 
 
 class StorageManager:

@@ -32,7 +32,7 @@ from kivymd.uix.screen import MDScreen
 from src.api.weather import fetch_weather
 from src.models.location import Location
 from src.models.weather import WeatherData, wind_direction_label
-from src.utils.wmo_codes import get_label, get_condition, get_bg_path, get_icon_path, is_night
+from src.utils.wmo_codes import get_label, get_condition, get_bg_path, get_icon_path, is_night, get_moon_phase
 from src.widgets.weather_overlay import WeatherOverlay, overlay_for_night
 from src.widgets.hourly_card import HourlyForecastCard
 from src.widgets.daily_forecast import DailyForecastCard
@@ -218,7 +218,8 @@ class WeatherDetailWidget(FloatLayout):
 
         # ── Hero card with hi-res background photo ──────────────────
         # Layout: Image fills card → dark overlay → text on top
-        hero = FloatLayout(size_hint_y=None, height=dp(300))
+        # Night gets extra height for the moon phase row
+        hero = FloatLayout(size_hint_y=None, height=dp(320) if night else dp(300))
 
         # Photo background via canvas.before texture (most reliable on Android)
         import os
@@ -327,6 +328,29 @@ class WeatherDetailWidget(FloatLayout):
             )
             hl_lbl.bind(size=hl_lbl.setter('text_size'))
             text_layer.add_widget(hl_lbl)
+
+        # Moon phase row — always shown at night regardless of weather
+        if night:
+            moon_name, moon_path, moon_illum = get_moon_phase()
+            import os
+            abs_moon = os.path.join(os.getcwd(), moon_path)
+            moon_row = BoxLayout(orientation='horizontal', size_hint_y=None,
+                                 height=dp(30), spacing=dp(6))
+            moon_row.add_widget(Widget(size_hint_x=1))
+            if os.path.exists(abs_moon):
+                moon_row.add_widget(KivyImage(
+                    source=abs_moon,
+                    size_hint=(None, None), size=(dp(22), dp(22)),
+                ))
+            moon_row.add_widget(Label(
+                text=f'{moon_name}  ·  {moon_illum}% illuminated',
+                font_size=sp(13),
+                color=(1, 1, 1, 0.75),
+                size_hint_y=None, height=dp(30),
+                halign='left', valign='middle',
+            ))
+            moon_row.add_widget(Widget(size_hint_x=1))
+            text_layer.add_widget(moon_row)
 
         hero.add_widget(text_layer)
         self._content.add_widget(hero)
