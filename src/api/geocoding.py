@@ -20,10 +20,20 @@ _TIMEOUT = 8
 
 
 def _extract_city(address: dict) -> str:
-    """Pull city/town/village from Nominatim address dict."""
-    for key in ('city', 'town', 'village', 'hamlet', 'county'):
-        if key in address:
+    """Pull the best city name from a Nominatim address dict.
+
+    Priority: city > town > village > hamlet > municipality > suburb > county.
+    For county results (e.g. zip resolves to 'Rutherford County'), strip the
+    ' County' suffix so we get 'Rutherford' at worst.
+    """
+    for key in ('city', 'town', 'village', 'hamlet', 'municipality', 'suburb'):
+        if key in address and address[key]:
             return address[key]
+    if 'county' in address:
+        name = address['county']
+        if name.endswith(' County'):
+            name = name[:-7]
+        return name
     return ''
 
 

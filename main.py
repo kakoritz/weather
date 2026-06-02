@@ -4,27 +4,56 @@ Built with Python / Kivy 2.3.0 / KivyMD 1.2.0.
 __version__ = '1.0.0'
 
 import os
-# Suppress Kivy startup log spam on Android
-os.environ.setdefault('KIVY_NO_ENV_CONFIG', '1')
-os.environ.setdefault('KIVY_NO_CONSOLELOG', '1')
+import sys
+import traceback
 
-# Kivy config must be set before any kivy imports
-from kivy.config import Config
-Config.set('kivy', 'exit_on_escape', '0')        # prevent back-key exit on desktop
-Config.set('graphics', 'resizable', '0')
-Config.set('input', 'mouse', 'mouse,multitouch_on_demand')
+# Write crash at import-time errors to /sdcard/ which is world-readable
+def _write_crash(exc, path=None):
+    try:
+        if path is None:
+            path = '/sdcard/weatherapp_crash.log'
+        with open(path, 'w') as f:
+            traceback.print_exception(type(exc), exc, exc.__traceback__, file=f)
+            f.write('\nPython: ' + sys.version + '\n')
+    except Exception:
+        pass
 
-from kivy.clock import Clock
-from kivy.core.window import Window
-from kivy.utils import platform
-from kivymd.app import MDApp
-from kivy.uix.screenmanager import ScreenManager, FadeTransition
+try:
+    os.environ.setdefault('KIVY_NO_ENV_CONFIG', '1')
+    # Keep console logging ON so errors appear in logcat
+    # os.environ.setdefault('KIVY_NO_CONSOLELOG', '1')
 
-from src.models.location import Location
-from src.storage.manager import StorageManager
-from src.screens.add_location import AddLocationScreen
-from src.screens.location_list import LocationListScreen
-from src.screens.weather_detail import WeatherCarouselScreen
+    # KivyMD 1.2.0 has a bug where animations are double-stopped, raising
+    # ValueError: list.remove(x). Patch Animation.stop to suppress this.
+    from kivy.animation import Animation as _Anim
+    _orig_stop = _Anim.stop
+    def _safe_stop(self, widget):
+        try:
+            _orig_stop(self, widget)
+        except (ValueError, Exception):
+            pass
+    _Anim.stop = _safe_stop
+
+    from kivy.config import Config
+    Config.set('kivy', 'exit_on_escape', '0')
+    Config.set('graphics', 'resizable', '0')
+    Config.set('input', 'mouse', 'mouse,multitouch_on_demand')
+
+    from kivy.clock import Clock
+    from kivy.core.window import Window
+    from kivy.utils import platform
+    from kivymd.app import MDApp
+    from kivy.uix.screenmanager import ScreenManager, FadeTransition
+
+    from src.models.location import Location
+    from src.storage.manager import StorageManager
+    from src.screens.add_location import AddLocationScreen
+    from src.screens.location_list import LocationListScreen
+    from src.screens.weather_detail import WeatherCarouselScreen
+
+except Exception as _import_exc:
+    _write_crash(_import_exc)
+    raise
 
 
 class WeatherApp(MDApp):
@@ -44,15 +73,19 @@ class WeatherApp(MDApp):
             self._request_android_permissions()
 
         self.storage = StorageManager()
-        self.sm = ScreenManager(transition=FadeTransition(duration=0.18))
+        # NoTransition avoids animation crash (ValueError: list.remove) when
+        # screens are removed while MDTextField focus animation is still running.
+        from kivy.uix.screenmanager import NoTransition
+        self.sm = ScreenManager(transition=NoTransition())
 
         locations = self.storage.load_locations()
 
         if not locations:
-            # No saved locations — go straight to add screen
+            # No saved locations — go straight to add screen (no cancel button)
             add_screen = AddLocationScreen(
                 name='add_location',
                 on_location_added=self._on_first_location_added,
+                on_cancel=None,
             )
             self.sm.add_widget(add_screen)
             self.sm.current = 'add_location'
@@ -80,10 +113,11 @@ class WeatherApp(MDApp):
         )
         self.sm.add_widget(list_screen)
 
-        # Add location screen (accessible from list)
+        # Add location screen (accessible from list — has cancel button)
         add_screen = AddLocationScreen(
             name='add_location',
             on_location_added=self._on_location_added,
+            on_cancel=lambda: setattr(self.sm, 'current', 'weather_carousel'),
         )
         self.sm.add_widget(add_screen)
 
@@ -163,4 +197,8 @@ class WeatherApp(MDApp):
 
 
 if __name__ == '__main__':
-    WeatherApp().run()
+    try:
+        WeatherApp().run()
+    except Exception as e:
+        _write_crash(e)
+        raise

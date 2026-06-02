@@ -79,3 +79,128 @@ def get_gradients(code: int) -> tuple[tuple, tuple]:
     key = get_condition(code)
     table = NIGHT_GRADIENTS if is_night() else DAY_GRADIENTS
     return table.get(key, DAY_GRADIENTS['clear'])
+
+
+# WMO code → OpenWeatherMap icon base code + whether it has day/night variants
+_OWM_MAP = {
+    0: ('01', True),   # clear sky
+    1: ('01', True),   # mainly clear
+    2: ('02', True),   # partly cloudy
+    3: ('04', False),  # overcast
+    45: ('50', False), # fog
+    48: ('50', False), # icy fog
+    51: ('09', False), # light drizzle
+    53: ('09', False), # drizzle
+    55: ('09', False), # heavy drizzle
+    61: ('10', True),  # light rain
+    63: ('10', True),  # rain
+    65: ('10', True),  # heavy rain
+    71: ('13', False), # light snow
+    73: ('13', False), # snow
+    75: ('13', False), # heavy snow
+    80: ('09', False), # rain showers
+    81: ('10', True),  # rain showers moderate
+    82: ('10', True),  # violent showers
+    85: ('13', False), # snow showers
+    86: ('13', False), # heavy snow showers
+    95: ('11', False), # thunderstorm
+    96: ('11', False), # thunderstorm with hail
+    99: ('11', False), # severe thunderstorm
+}
+
+
+def get_owm_icon(code: int, night: bool = False) -> str:
+    """Return the OpenWeatherMap icon filename (without .png) for a WMO code."""
+    base, has_variant = _OWM_MAP.get(code, ('01', True))
+    suffix = 'n' if (night and has_variant) else 'd'
+    return f'{base}{suffix}'
+
+
+def get_icon_path(code: int, night: bool | None = None) -> str:
+    """Return relative path to the weather icon PNG for this WMO code."""
+    if night is None:
+        night = is_night()
+    return f'assets/icons/{get_owm_icon(code, night)}.png'
+
+
+# WMO condition → background photo name
+_BG_MAP = {
+    'clear':         ('clear_day', 'clear_night'),
+    'partly_cloudy': ('partly_cloudy_day', 'partly_cloudy_night'),
+    'overcast':      ('overcast', 'overcast'),
+    'fog':           ('fog', 'fog'),
+    'drizzle':       ('drizzle', 'rain'),
+    'rain':          ('rain', 'rain'),
+    'heavy_rain':    ('heavy_rain', 'heavy_rain'),
+    'snow':          ('snow', 'snow'),
+    'thunderstorm':  ('thunderstorm', 'thunderstorm'),
+}
+
+
+def get_bg_path(code: int, night: bool | None = None) -> str:
+    """Return relative path to the hi-res background photo for the hero card."""
+    if night is None:
+        night = is_night()
+    cond = get_condition(code)
+    day_bg, night_bg = _BG_MAP.get(cond, ('clear_day', 'clear_night'))
+    name = night_bg if night else day_bg
+    return f'assets/backgrounds/{name}.jpg'
+
+
+# ─── Moon phase ──────────────────────────────────────────────────────────────
+
+import math as _math
+
+
+_MOON_FILES = [
+    'wi-moon-new',
+    'wi-moon-waxing-crescent-1', 'wi-moon-waxing-crescent-2',
+    'wi-moon-waxing-crescent-3', 'wi-moon-waxing-crescent-4',
+    'wi-moon-waxing-crescent-5', 'wi-moon-waxing-crescent-6',
+    'wi-moon-first-quarter',
+    'wi-moon-waxing-gibbous-1', 'wi-moon-waxing-gibbous-2',
+    'wi-moon-waxing-gibbous-3', 'wi-moon-waxing-gibbous-4',
+    'wi-moon-waxing-gibbous-5', 'wi-moon-waxing-gibbous-6',
+    'wi-moon-full',
+    'wi-moon-waning-gibbous-1', 'wi-moon-waning-gibbous-2',
+    'wi-moon-waning-gibbous-3', 'wi-moon-waning-gibbous-4',
+    'wi-moon-waning-gibbous-5', 'wi-moon-waning-gibbous-6',
+    'wi-moon-third-quarter',
+    'wi-moon-waning-crescent-1', 'wi-moon-waning-crescent-2',
+    'wi-moon-waning-crescent-3', 'wi-moon-waning-crescent-4',
+    'wi-moon-waning-crescent-5', 'wi-moon-waning-crescent-6',
+]
+
+_MOON_NAMES = [
+    'New Moon',
+    'Waxing Crescent', 'Waxing Crescent', 'Waxing Crescent',
+    'Waxing Crescent', 'Waxing Crescent', 'Waxing Crescent',
+    'First Quarter',
+    'Waxing Gibbous', 'Waxing Gibbous', 'Waxing Gibbous',
+    'Waxing Gibbous', 'Waxing Gibbous', 'Waxing Gibbous',
+    'Full Moon',
+    'Waning Gibbous', 'Waning Gibbous', 'Waning Gibbous',
+    'Waning Gibbous', 'Waning Gibbous', 'Waning Gibbous',
+    'Third Quarter',
+    'Waning Crescent', 'Waning Crescent', 'Waning Crescent',
+    'Waning Crescent', 'Waning Crescent', 'Waning Crescent',
+]
+
+
+def get_moon_phase():
+    """Return (phase_name, icon_path, illumination_pct) using 28 phases.
+
+    Maps lunar age (0-29.53 days) to one of 28 distinct icons from the
+    Erik Flowers weather-icons set stored in assets/icons/moon/.
+    """
+    from datetime import datetime as _dt
+    _ref = _dt(2000, 1, 6, 18, 14)   # Known new moon 2000-01-06
+    _synodic = 29.53059
+    age = (_dt.utcnow() - _ref).total_seconds() / 86400 % _synodic
+
+    idx = min(27, int(age * 28 / _synodic))
+    illum = round((1 - _math.cos(_math.pi * 2 * age / _synodic)) / 2 * 100)
+
+    fname = _MOON_FILES[idx]
+    name  = _MOON_NAMES[idx]
+    return name, f'assets/icons/moon/{fname}.png', illum

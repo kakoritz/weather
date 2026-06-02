@@ -25,7 +25,7 @@ KV = """
 <_BaseCard>:
     orientation: 'vertical'
     size_hint_y: None
-    height: dp(150)
+    height: dp(165)
     padding: [dp(14), dp(12)]
     spacing: dp(6)
     canvas.before:
@@ -226,7 +226,7 @@ class _UVBar(Widget):
 class SunsetCard(_BaseCard):
     def __init__(self, sunset: str, sunrise: str, progress: float, **kwargs):
         super().__init__(**kwargs)
-        self.height = dp(170)
+        self.height = dp(165)
         self.add_widget(_card_title('Sunset'))
         self.add_widget(_card_value(sunset or '—', size=sp(34)))
         arc = _SunArc(progress=progress, size_hint=(1, None), height=dp(70))
@@ -285,7 +285,7 @@ class _SunArc(Widget):
 class WindCard(_BaseCard):
     def __init__(self, speed: int, direction_deg: int, **kwargs):
         super().__init__(**kwargs)
-        self.height = dp(170)
+        self.height = dp(165)
         label = wind_direction_label(direction_deg)
         self.add_widget(_card_title('Wind'))
 
@@ -413,7 +413,7 @@ class VisibilityCard(_BaseCard):
 class PressureCard(_BaseCard):
     def __init__(self, pressure_hpa: float, trend: str, **kwargs):
         super().__init__(**kwargs)
-        self.height = dp(170)
+        self.height = dp(165)
         inhg = pressure_hpa * 0.02953
         self.add_widget(_card_title('Pressure'))
         gauge = _PressureGauge(inhg=inhg, size_hint=(1, None), height=dp(80))
@@ -489,15 +489,15 @@ class _PressureGauge(Widget):
 class TemperatureMapCard(_BaseCard):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.height = dp(160)
+        self.height = dp(165)
         self.add_widget(_card_title('Temperature'))
         placeholder = Widget(size_hint=(1, 1))
         with placeholder.canvas:
             Color(0.15, 0.25, 0.40, 0.80)
-            RoundedRectangle(pos=(0, 0), size=(1, 1), radius=[dp(8)])
+            _ph_rect = RoundedRectangle(pos=(0, 0), size=(1, 1), radius=[dp(8)])
         placeholder.bind(
-            pos=lambda w, v: setattr(placeholder.canvas.children[-1], 'pos', v),
-            size=lambda w, v: setattr(placeholder.canvas.children[-1], 'size', v),
+            pos=lambda w, v, r=_ph_rect: setattr(r, 'pos', v),
+            size=lambda w, v, r=_ph_rect: setattr(r, 'size', v),
         )
         from kivy.uix.label import Label
         lbl = Label(

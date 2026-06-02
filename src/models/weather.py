@@ -119,6 +119,25 @@ class WeatherData:
         today = self.daily[0].date
         return [h for h in self.hourly if h.time.startswith(today)]
 
+    def next_24_hours(self) -> list:
+        """Return 24 hourly entries starting from the current hour.
+
+        Always starts at NOW regardless of time of day. If it's 11 PM,
+        entries roll into the next day. The first entry is always 'now'.
+        """
+        from datetime import datetime
+        now = datetime.now()
+        # Build a string like '2025-06-01T23:00' to match against hourly times
+        current_slot = now.strftime('%Y-%m-%dT%H:00')
+        start_idx = None
+        for i, h in enumerate(self.hourly):
+            if h.time >= current_slot:
+                start_idx = i
+                break
+        if start_idx is None:
+            return self.hourly[:24]
+        return self.hourly[start_idx:start_idx + 24]
+
     def today_high(self) -> Optional[int]:
         return self.daily[0].max_temp if self.daily else None
 

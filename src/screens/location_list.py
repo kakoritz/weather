@@ -1,10 +1,13 @@
 """LocationListScreen — list of all saved locations with current conditions."""
+import os
+from kivy.animation import Animation
 from kivy.clock import Clock
 from kivy.graphics import Color, Rectangle, RoundedRectangle
 from kivy.lang import Builder
 from kivy.metrics import dp, sp
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.floatlayout import FloatLayout
+from kivy.uix.image import Image as KivyImage
 from kivy.uix.label import Label
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.widget import Widget
@@ -13,7 +16,9 @@ from kivymd.uix.screen import MDScreen
 
 from src.models.location import Location
 from src.models.weather import WeatherData
-from src.utils.wmo_codes import get_label, get_gradients
+from src.utils.wmo_codes import get_label, get_bg_path, is_night
+
+_DEL_W = dp(80)   # width of the revealed delete zone
 
 KV = """
 <LocationListScreen>:
@@ -29,123 +34,140 @@ Builder.load_string(KV)
 
 
 class _LocationCard(BoxLayout):
-    """Single location row card."""
+    """Location card using a horizontal ScrollView for swipe-to-delete.
+
+    The card content is full-width. Swiping left reveals a red Delete button
+    that's the same height. Snaps to open (50/50) or closed. Tap on content
+    navigates; tap on Delete button removes the location.
+    """
+
     def __init__(self, location: Location, weather: WeatherData | None,
-                 on_tap, on_delete, edit_mode: bool, **kwargs):
-        super().__init__(
-            orientation='horizontal',
-            size_hint_y=None,
-            height=dp(105),
-            padding=[dp(16), dp(12)],
-            spacing=dp(12),
-            **kwargs,
-        )
+                 on_tap, on_delete, **kwargs):
+        super().__init__(size_hint_y=None, height=dp(110), **kwargs)
         self._location = location
         self._on_tap = on_tap
+        self._on_delete = on_delete
+        self._touch_start = None
 
-        # Background gradient from weather condition
-        top, bottom = get_gradients(weather.current.code if weather else 0)
-        with self.canvas.before:
-            Color(*top)
-            self._bg_rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[dp(14)])
-        self.bind(pos=self._update_bg, size=self._update_bg)
+        # Horizontal scroll reveals Delete button to the right
+        scroll = ScrollView(
+            do_scroll_x=True,
+            do_scroll_y=False,
+            bar_width=0,
+            scroll_x=0,
+            effect_cls='ScrollEffect',
+            size_hint=(1, 1),
+        )
+        # Container: [full-width content] [delete button _DEL_W]
+        self._container = BoxLayout(
+            orientation='horizontal',
+            size_hint=(None, 1),
+        )
 
-        # Left: city name + condition
+        # ── Content card ──────────────────────────────────────────
+        self._content_card = FloatLayout(size_hint=(None, 1))
+        self.bind(width=self._on_width)  # set widths once we know our own
+
+        # Background photo
+        night = is_night()
+        code = weather.current.code if weather else 0
+        abs_bg = os.path.join(os.getcwd(), get_bg_path(code, night))
+        if os.path.exists(abs_bg):
+            bg = KivyImage(source=abs_bg, size_hint=(1, 1),
+                           pos_hint={'x': 0, 'y': 0})
+            try: bg.fit_mode = 'cover'
+            except: pass
+            self._content_card.add_widget(bg)
+
+        ov = Widget(size_hint=(1, 1), pos_hint={'x': 0, 'y': 0})
+        with ov.canvas:
+            Color(0, 0, 0, 0.38)
+            _ov = Rectangle(pos=ov.pos, size=ov.size)
+        ov.bind(pos=lambda w, v, r=_ov: setattr(r, 'pos', v),
+                size=lambda w, v, r=_ov: setattr(r, 'size', v))
+        self._content_card.add_widget(ov)
+
+        inner = BoxLayout(orientation='horizontal', size_hint=(1, 1),
+                          pos_hint={'x': 0, 'y': 0},
+                          padding=[dp(16), dp(12)], spacing=dp(12))
         left = BoxLayout(orientation='vertical', size_hint=(1, 1))
-        time_lbl = Label(
-            text=self._local_time(),
-            font_size=sp(12),
-            color=(1, 1, 1, 0.65),
-            size_hint_y=None,
-            height=dp(16),
-            halign='left',
-            valign='middle',
-        )
-        time_lbl.bind(size=time_lbl.setter('text_size'))
-        left.add_widget(time_lbl)
-
-        city_lbl = Label(
-            text=location.city,
-            font_size=sp(22),
-            bold=True,
-            color=(1, 1, 1, 0.97),
-            size_hint_y=None,
-            height=dp(28),
-            halign='left',
-            valign='middle',
-        )
-        city_lbl.bind(size=city_lbl.setter('text_size'))
-        left.add_widget(city_lbl)
-
-        if weather:
-            cond_lbl = Label(
-                text=get_label(weather.current.code),
-                font_size=sp(14),
-                color=(1, 1, 1, 0.75),
-                size_hint_y=None,
-                height=dp(20),
-                halign='left',
-                valign='middle',
-            )
-            cond_lbl.bind(size=cond_lbl.setter('text_size'))
-            left.add_widget(cond_lbl)
-
-            hl_lbl = Label(
-                text=f'H:{weather.today_high()}°   L:{weather.today_low()}°',
-                font_size=sp(13),
-                color=(1, 1, 1, 0.70),
-                size_hint_y=None,
-                height=dp(18),
-                halign='left',
-                valign='middle',
-            )
-            hl_lbl.bind(size=hl_lbl.setter('text_size'))
-            left.add_widget(hl_lbl)
-
-        self.add_widget(left)
-
-        # Right: temperature or delete button
-        if edit_mode:
-            del_btn = MDIconButton(
-                icon='minus-circle',
-                theme_icon_color='Custom',
-                icon_color=(1, 0.35, 0.35, 1),
-                icon_size=dp(28),
-                size_hint=(None, None),
-                size=(dp(44), dp(44)),
-                on_release=lambda *_: on_delete(location.zip),
-            )
-            self.add_widget(del_btn)
-        else:
-            if weather:
-                temp_lbl = Label(
-                    text=f'{weather.current.temp}°',
-                    font_size=sp(44),
-                    color=(1, 1, 1, 0.97),
-                    size_hint=(None, 1),
-                    width=dp(80),
-                    halign='right',
-                    valign='middle',
-                )
-                temp_lbl.bind(size=temp_lbl.setter('text_size'))
-                self.add_widget(temp_lbl)
-
-        # Touch handling
-        self.bind(on_touch_down=self._touch_down)
-
-    def _touch_down(self, widget, touch):
-        if self.collide_point(*touch.pos):
-            self._on_tap(self._location)
-            return True
-
-    def _update_bg(self, *_):
-        self._bg_rect.pos = self.pos
-        self._bg_rect.size = self.size
-
-    @staticmethod
-    def _local_time() -> str:
         from datetime import datetime
-        return datetime.now().strftime('%I:%M %p').lstrip('0')
+        for txt, sz, bold, alpha, h in [
+            (datetime.now().strftime('%I:%M %p').lstrip('0'), sp(12), False, 0.65, dp(16)),
+            (location.city, sp(22), True, 1.0, dp(28)),
+        ]:
+            lbl = Label(text=txt, font_size=sz, bold=bold, color=(1, 1, 1, alpha),
+                        size_hint_y=None, height=h, halign='left', valign='middle')
+            lbl.bind(size=lbl.setter('text_size'))
+            left.add_widget(lbl)
+        if weather:
+            for txt, sz, alpha, h in [
+                (get_label(weather.current.code), sp(14), 0.80, dp(20)),
+                (f'H:{weather.today_high()}°   L:{weather.today_low()}°', sp(13), 0.70, dp(18)),
+            ]:
+                lbl = Label(text=txt, font_size=sz, color=(1, 1, 1, alpha),
+                            size_hint_y=None, height=h, halign='left', valign='middle')
+                lbl.bind(size=lbl.setter('text_size'))
+                left.add_widget(lbl)
+        inner.add_widget(left)
+        if weather:
+            t = Label(text=f'{weather.current.temp}°', font_size=sp(44),
+                      color=(1, 1, 1, 1), size_hint=(None, 1), width=dp(80),
+                      halign='right', valign='middle')
+            t.bind(size=t.setter('text_size'))
+            inner.add_widget(t)
+        self._content_card.add_widget(inner)
+
+        # Touch on content → tap or start swipe
+        inner.bind(on_touch_down=self._content_touch_down)
+        inner.bind(on_touch_up=self._content_touch_up)
+        self._container.add_widget(self._content_card)
+
+        # ── Delete button — BoxLayout clips text within bounds ───────
+        del_btn = BoxLayout(size_hint=(None, 1), width=_DEL_W)
+        with del_btn.canvas.before:
+            Color(0.92, 0.18, 0.18, 1)
+            _db = Rectangle(pos=del_btn.pos, size=del_btn.size)
+        del_btn.bind(pos=lambda w, v, r=_db: setattr(r, 'pos', v),
+                     size=lambda w, v, r=_db: setattr(r, 'size', v))
+        lbl_del = Label(text='Delete', font_size=sp(14), bold=True,
+                        color=(1, 1, 1, 1), size_hint=(1, 1),
+                        halign='center', valign='middle')
+        lbl_del.bind(size=lbl_del.setter('text_size'))
+        del_btn.add_widget(lbl_del)
+        del_btn.bind(on_touch_up=self._delete_touch)
+        self._container.add_widget(del_btn)
+
+        scroll.add_widget(self._container)
+        self.add_widget(scroll)
+        self._scroll = scroll
+
+    def _on_width(self, *_):
+        w = self.width
+        self._content_card.width = w
+        self._container.width = w + _DEL_W
+
+    def _content_touch_down(self, widget, touch):
+        if widget.collide_point(*touch.pos):
+            self._touch_start = touch.pos
+
+    def _content_touch_up(self, widget, touch):
+        if not self._touch_start:
+            return
+        dx = touch.x - self._touch_start[0]
+        dy = touch.y - self._touch_start[1]
+        self._touch_start = None
+        if abs(dx) < dp(12) and abs(dy) < dp(12):
+            if self._scroll.scroll_x < 0.05:
+                self._on_tap(self._location)
+            else:
+                # Tap while open → close
+                Animation(scroll_x=0, duration=0.2, t='out_quad').start(self._scroll)
+
+    def _delete_touch(self, widget, touch):
+        if widget.collide_point(*touch.pos):
+            self._on_delete(self._location.zip)
+            return True
 
 
 class LocationListScreen(MDScreen):
@@ -153,11 +175,10 @@ class LocationListScreen(MDScreen):
                  on_tap, on_add, on_delete, **kwargs):
         super().__init__(**kwargs)
         self._locations = locations
-        self._weather_map = weather_map  # dict[zip_str → WeatherData | None]
+        self._weather_map = weather_map
         self._on_tap = on_tap
         self._on_add = on_add
         self._on_delete = on_delete
-        self._edit_mode = False
         self._build_ui()
 
     def refresh(self, locations: list, weather_map: dict):
@@ -193,16 +214,15 @@ class LocationListScreen(MDScreen):
             valign='middle',
         ))
 
-        self._edit_btn = MDIconButton(
-            icon='pencil',
-            theme_icon_color='Custom',
-            icon_color=(1, 1, 1, 0.75),
-            icon_size=dp(22),
-            size_hint=(None, None),
-            size=(dp(40), dp(40)),
-            on_release=self._toggle_edit,
+        # Hint label
+        hint = Label(
+            text='← swipe to delete',
+            font_size=sp(11), color=(1, 1, 1, 0.35),
+            size_hint=(None, 1), width=dp(120),
+            halign='right', valign='middle',
         )
-        top_bar.add_widget(self._edit_btn)
+        hint.bind(size=hint.setter('text_size'))
+        top_bar.add_widget(hint)
 
         root.add_widget(top_bar)
 
@@ -217,10 +237,10 @@ class LocationListScreen(MDScreen):
         search_box = BoxLayout(size_hint=(1, 1))
         with search_box.canvas.before:
             Color(0.15, 0.15, 0.18, 0.90)
-            RoundedRectangle(pos=(0, 0), size=(1, 1), radius=[dp(10)])
+            _sb_rect = RoundedRectangle(pos=(0, 0), size=(1, 1), radius=[dp(10)])
         search_box.bind(
-            pos=lambda w, v: setattr(search_box.canvas.children[-1], 'pos', v),
-            size=lambda w, v: setattr(search_box.canvas.children[-1], 'size', v),
+            pos=lambda w, v, r=_sb_rect: setattr(r, 'pos', v),
+            size=lambda w, v, r=_sb_rect: setattr(r, 'size', v),
         )
         search_lbl = Label(
             text='  Search for a city or airport',
@@ -256,8 +276,7 @@ class LocationListScreen(MDScreen):
                 location=loc,
                 weather=weather,
                 on_tap=self._on_tap,
-                on_delete=self._handle_delete,
-                edit_mode=self._edit_mode,
+                on_delete=self._on_delete,
             )
             cards_box.add_widget(card)
 
@@ -279,11 +298,4 @@ class LocationListScreen(MDScreen):
 
         self.add_widget(root)
 
-    def _toggle_edit(self, *_):
-        self._edit_mode = not self._edit_mode
-        self._edit_btn.icon = 'check' if self._edit_mode else 'pencil'
-        self.clear_widgets()
-        self._build_ui()
-
-    def _handle_delete(self, zip_code: str):
-        self._on_delete(zip_code)
+    pass
