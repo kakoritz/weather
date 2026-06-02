@@ -137,89 +137,75 @@ class WeatherDetailWidget(FloatLayout):
     def _build(self, *_):
         w = self._weather
 
-        # Solid sky-blue background for the entire screen (no canvas animations)
+        # Sky background (canvas)
         self._draw_sky()
 
-        # Scroll view — flush to top of screen, no overscroll
-        self._scroll = ScrollView(
-            do_scroll_y=True,
-            do_scroll_x=False,
-            bar_width=0,
-            size_hint=(1, 1),
-            scroll_type=['bars', 'content'],
-            # Prevent rubber-band bounce past the top edge
-            effect_cls='ScrollEffect',
-        )
-        self._content = BoxLayout(
-            orientation='vertical',
-            size_hint_y=None,
-            padding=[dp(0), dp(0), dp(0), dp(80)],  # no top padding — hero is flush to top
-            spacing=dp(0),  # hero has no gap above it; gaps added per-card via padding
-        )
-        self._content.bind(minimum_height=self._content.setter('height'))
+        # ── Outer vertical stack: [Hero (fixed)] [ScrollView (rest)] ──────────
+        # Hero is LOCKED at the top — it never scrolls away.
+        stack = BoxLayout(orientation='vertical', size_hint=(1, 1))
 
         if w is None:
-            self._add_loading_state()
+            self._add_loading_state(stack)
         else:
-            self._add_weather_content(w)
+            self._add_weather_content(stack, w)
 
-        self._scroll.add_widget(self._content)
-        self.add_widget(self._scroll)
+        self.add_widget(stack)
 
-    def _add_loading_state(self):
-        """Skeleton loading state — pre-populated layout with placeholder values."""
-        # Hero placeholder (matches hero card dimensions)
-        hero = FloatLayout(size_hint_y=None, height=dp(300))
-        # Dim placeholder background
+    def _add_loading_state(self, stack):
+        """Skeleton: hero pinned at top, ghost cards in scroll below."""
+        HERO_H = dp(240)
+
+        # Hero placeholder (pinned to top of stack)
+        hero = FloatLayout(size_hint=(1, None), height=HERO_H)
         with hero.canvas.before:
             Color(0, 0, 0, 0.25)
             _h_rect = Rectangle(pos=hero.pos, size=hero.size)
-        hero.bind(
-            pos=lambda w, v, r=_h_rect: setattr(r, 'pos', v),
-            size=lambda w, v, r=_h_rect: setattr(r, 'size', v),
-        )
-        text_layer = BoxLayout(orientation='vertical', size_hint=(1, 1),
-                               pos_hint={'x': 0, 'y': 0}, padding=[dp(16), dp(20)], spacing=dp(4))
-        for txt, sz, bold, alpha in [
-            (self._location.display_name, sp(30), True, 0.90),
-            ('--°', sp(90), False, 0.55),
-            ('Retrieving weather…', sp(18), False, 0.50),
-            ('H:--°   L:--°', sp(17), False, 0.45),
+        hero.bind(pos=lambda w, v, r=_h_rect: setattr(r, 'pos', v),
+                  size=lambda w, v, r=_h_rect: setattr(r, 'size', v))
+        tl = BoxLayout(orientation='vertical', size_hint=(1, 1),
+                       pos_hint={'x': 0, 'y': 0}, padding=[dp(16), dp(16)], spacing=dp(4))
+        for txt, sz, alpha in [
+            (self._location.display_name, sp(26), 0.90),
+            ('--°', sp(80), 0.55),
+            ('Retrieving weather…', sp(16), 0.50),
         ]:
-            lbl = Label(text=txt, font_size=sz, bold=bold, color=(1, 1, 1, alpha),
-                        size_hint_y=None, height=dp(108) if '°' in txt and len(txt) <= 4 else dp(32),
+            lbl = Label(text=txt, font_size=sz, bold=False, color=(1, 1, 1, alpha),
+                        size_hint_y=None, height=dp(92) if txt == '--°' else dp(28),
                         halign='center', valign='middle')
             lbl.bind(size=lbl.setter('text_size'))
-            text_layer.add_widget(lbl)
-        hero.add_widget(text_layer)
-        self._content.add_widget(hero)
+            tl.add_widget(lbl)
+        hero.add_widget(tl)
+        stack.add_widget(hero)
 
-        # Skeleton cards below
-        self._content.add_widget(Widget(size_hint_y=None, height=dp(12)))
-        for h in [dp(60), dp(170), dp(400)]:
+        # Scrollable skeleton cards
+        self._scroll = ScrollView(do_scroll_y=True, do_scroll_x=False,
+                                  bar_width=0, size_hint=(1, 1), effect_cls='ScrollEffect')
+        content = BoxLayout(orientation='vertical', size_hint_y=None,
+                            padding=[0, 0, 0, dp(80)], spacing=0)
+        content.bind(minimum_height=content.setter('height'))
+        for h in [dp(50), dp(170), dp(400)]:
+            content.add_widget(Widget(size_hint_y=None, height=dp(10)))
             ph = Widget(size_hint_y=None, height=h)
             with ph.canvas:
-                Color(0, 0, 0, 0.15)
+                Color(0, 0, 0, 0.12)
                 _rr = RoundedRectangle(pos=ph.pos, size=ph.size, radius=[dp(14)])
-            ph.bind(
-                pos=lambda w, v, r=_rr: setattr(r, 'pos', v),
-                size=lambda w, v, r=_rr: setattr(r, 'size', v),
-            )
+            ph.bind(pos=lambda w, v, r=_rr: setattr(r, 'pos', v),
+                    size=lambda w, v, r=_rr: setattr(r, 'size', v))
             padded = BoxLayout(size_hint_y=None, height=h, padding=[dp(14), 0])
             padded.add_widget(ph)
-            self._content.add_widget(padded)
-            self._content.add_widget(Widget(size_hint_y=None, height=dp(10)))
+            content.add_widget(padded)
+        self._scroll.add_widget(content)
+        stack.add_widget(self._scroll)
 
-    def _add_weather_content(self, w: WeatherData):
+    def _add_weather_content(self, stack, w: WeatherData):
         from kivy.uix.image import Image as KivyImage
         today = w.daily[0] if w.daily else None
         code = w.current.code
         night = is_night()
+        HERO_H = dp(260) if night else dp(240)   # -20% from original dp(320/300)
 
-        # ── Hero card with hi-res background photo ──────────────────
-        # Layout: Image fills card → dark overlay → text on top
-        # Night gets extra height for the moon phase row
-        hero = FloatLayout(size_hint_y=None, height=dp(320) if night else dp(300))
+        # ── Hero card — FIXED/STICKY at top, never scrolls ──────────
+        hero = FloatLayout(size_hint=(1, None), height=HERO_H)
 
         # Photo background via canvas.before texture (most reliable on Android)
         import os
@@ -267,13 +253,14 @@ class WeatherDetailWidget(FloatLayout):
             spacing=dp(4),
         )
 
+        # City name — thin weight per design direction
         city_lbl = Label(
             text=self._location.display_name,
-            font_size=sp(30),
-            bold=True,
-            color=(1, 1, 1, 1),
+            font_size=sp(28),
+            bold=False,
+            color=(1, 1, 1, 0.95),
             size_hint_y=None,
-            height=dp(40),
+            height=dp(36),
             halign='center',
             valign='middle',
         )
@@ -367,9 +354,15 @@ class WeatherDetailWidget(FloatLayout):
             text_layer.add_widget(moon_sub)
 
         hero.add_widget(text_layer)
-        self._content.add_widget(hero)
+        stack.add_widget(hero)   # ← STICKY: hero goes directly into the outer stack
 
-        # Helper: add a card with consistent 12dp vertical gap + horizontal padding
+        # ── Scrollable content below the fixed hero ────────────────────
+        self._scroll = ScrollView(do_scroll_y=True, do_scroll_x=False,
+                                  bar_width=0, size_hint=(1, 1), effect_cls='ScrollEffect')
+        self._content = BoxLayout(orientation='vertical', size_hint_y=None,
+                                  padding=[0, 0, 0, dp(80)], spacing=0)
+        self._content.bind(minimum_height=self._content.setter('height'))
+
         def add_card(widget, h=None):
             self._content.add_widget(Widget(size_hint_y=None, height=dp(12)))
             if h:
@@ -381,13 +374,13 @@ class WeatherDetailWidget(FloatLayout):
             padded.add_widget(widget)
             self._content.add_widget(padded)
 
-        # ── Summary text card ────────────────────────
-        add_card(self._build_summary_card(w))
-
-        # ── Hourly strip — always starts at NOW, rolls 24h forward ──
+        # ── Hourly strip (with summary text as its header) ────────────
         next_hours = w.next_24_hours()
         if next_hours:
-            add_card(HourlyForecastCard(entries=next_hours, first_is_now=True), h=dp(178))
+            add_card(HourlyForecastCard(
+                entries=next_hours, first_is_now=True,
+                summary=self._build_summary_text(w),
+            ), h=dp(210))
 
         # ── 10-day forecast ───────────────────────────
         if w.daily:
@@ -396,46 +389,39 @@ class WeatherDetailWidget(FloatLayout):
         # ── Detail cards grid ─────────────────────────
         add_card(DetailCardsGrid(data=w))
 
-        # Attribution
-        attrib = Label(
-            text='Weather data: Open-Meteo · Maps: OpenStreetMap',
-            font_size=sp(11),
-            color=(1, 1, 1, 0.40),
-            size_hint_y=None,
-            height=dp(20),
-            halign='center',
-            valign='middle',
-        )
+        attrib = Label(text='Weather data: Open-Meteo · OSM',
+                       font_size=sp(10), color=(1, 1, 1, 0.35),
+                       size_hint_y=None, height=dp(18),
+                       halign='center', valign='middle')
         attrib.bind(size=attrib.setter('text_size'))
         self._content.add_widget(attrib)
 
-    def _build_summary_card(self, w: WeatherData) -> Widget:
-        """Build the text summary card that describes the next several hours."""
+        self._scroll.add_widget(self._content)
+        stack.add_widget(self._scroll)
+
+    def _build_summary_text(self, w: WeatherData) -> str:
+        """Build a one-line summary for the hourly card header."""
         today = w.daily[0] if w.daily else None
         now_h = datetime.now().hour
-
-        # Build a simple summary sentence from hourly data
-        hours = w.today_hourly()
+        hours = w.next_24_hours()
         try:
             current_cond = get_label(w.current.code)
-            if hours:
-                later_hours = [h for h in hours if datetime.fromisoformat(h.time).hour > now_h + 2]
-                if later_hours:
-                    later_code = later_hours[0].code
-                    later_label = get_label(later_code)
-                    later_time_str = datetime.fromisoformat(later_hours[0].time).strftime('%-I%p')
-                    if later_code != w.current.code:
-                        summary_text = f'{current_cond} conditions changing to {later_label} around {later_time_str}.'
-                    else:
-                        summary_text = f'{current_cond} throughout the day.'
-                else:
-                    summary_text = f'{current_cond} conditions expected.'
+            later_hours = [h for h in hours[2:] if h.code != w.current.code]
+            if later_hours:
+                lh = later_hours[0]
+                t_str = datetime.fromisoformat(lh.time).strftime('%-I%p').lower()
+                summary = f'{current_cond} conditions changing to {get_label(lh.code)} around {t_str}.'
             else:
-                summary_text = f'{current_cond} conditions.'
+                summary = f'{current_cond} throughout the day.'
             if today and today.precip_prob > 30:
-                summary_text += f' {today.precip_prob}% chance of precipitation.'
+                summary += f'  {today.precip_prob}% chance of rain.'
         except Exception:
-            summary_text = get_label(w.current.code)
+            summary = get_label(w.current.code)
+        return summary
+
+    def _build_summary_card(self, w: WeatherData) -> Widget:
+        """Kept for compatibility — no longer used (summary merged into hourly)."""
+        summary_text = self._build_summary_text(w)
 
         card = BoxLayout(
             orientation='vertical',

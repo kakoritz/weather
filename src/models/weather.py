@@ -122,13 +122,14 @@ class WeatherData:
     def next_24_hours(self) -> list:
         """Return 24 hourly entries starting from the current hour.
 
-        Always starts at NOW regardless of time of day. If it's 11 PM,
-        entries roll into the next day. The first entry is always 'now'.
+        NOW threshold: if >= 55 min past the hour (xx:55+), advance to
+        the next hour so NOW flips cleanly 5 minutes before the hour turns.
         """
         from datetime import datetime
         now = datetime.now()
-        # Build a string like '2025-06-01T23:00' to match against hourly times
-        current_slot = now.strftime('%Y-%m-%dT%H:00')
+        # Advance to next hour if within 5 min of the turn
+        hour = now.hour if now.minute < 55 else min(now.hour + 1, 23)
+        current_slot = now.strftime(f'%Y-%m-%dT{hour:02d}:00')
         start_idx = None
         for i, h in enumerate(self.hourly):
             if h.time >= current_slot:

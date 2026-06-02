@@ -36,7 +36,8 @@ KV = """
 """
 Builder.load_string(KV)
 
-DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+# Python weekday() returns 0=Mon..6=Sun — must match that order
+DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
 
 class _DayRow(BoxLayout):
@@ -56,7 +57,7 @@ class _DayRow(BoxLayout):
         # Day name
         day_lbl = Label(
             text=self._day_label,
-            font_size=sp(17),
+            font_size=sp(19),
             color=(1, 1, 1, 0.95),
             size_hint=(None, 1),
             width=dp(96),
@@ -77,7 +78,7 @@ class _DayRow(BoxLayout):
         if f.precip_prob > 0:
             pp = Label(
                 text=f'{f.precip_prob}%',
-                font_size=sp(12),
+                font_size=sp(14),
                 color=(0.58, 0.78, 0.99, 1.0),
                 size_hint=(None, 1),
                 width=dp(38),
@@ -92,7 +93,7 @@ class _DayRow(BoxLayout):
         # Min temp
         min_lbl = Label(
             text=f'{f.min_temp}°',
-            font_size=sp(17),
+            font_size=sp(19),
             color=(1, 1, 1, 0.55),
             size_hint=(None, 1),
             width=dp(40),
@@ -118,7 +119,7 @@ class _DayRow(BoxLayout):
         # Max temp
         max_lbl = Label(
             text=f'{f.max_temp}°',
-            font_size=sp(17),
+            font_size=sp(19),
             bold=True,
             color=(1, 1, 1, 0.95),
             size_hint=(None, 1),
