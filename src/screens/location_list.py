@@ -376,6 +376,19 @@ class LocationListScreen(MDScreen):
         self._menu_open = False
         self._build_ui()
 
+    def on_pre_enter(self, *_):
+        """Pull latest weather from carousel each time this screen becomes visible."""
+        try:
+            carousel = self.manager.get_screen('weather_carousel')
+            wm = carousel.weather_map
+            if wm:
+                self._weather_map = wm
+                self._locations = list(carousel.locations)
+                self.clear_widgets()
+                self._build_ui()
+        except Exception:
+            pass
+
     def refresh(self, locations: list, weather_map: dict):
         self._locations = list(locations)
         self._weather_map = weather_map

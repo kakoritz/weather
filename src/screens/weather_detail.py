@@ -729,6 +729,13 @@ class WeatherCarouselScreen(MDScreen):
             def _update(dt):
                 if idx < len(self._detail_widgets):
                     self._detail_widgets[idx].update_weather(data)
+                # Push updated weather to list screen if it is currently visible
+                try:
+                    if self.manager.current == 'location_list':
+                        ls = self.manager.get_screen('location_list')
+                        ls.refresh(self._locations, self._weather_map)
+                except Exception:
+                    pass
             Clock.schedule_once(_update, 0)
 
         def on_error(msg: str):
