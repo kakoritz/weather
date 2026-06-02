@@ -315,6 +315,7 @@ class _DropdownMenu:
 
             row_fl = FloatLayout(size_hint_y=None, height=ITEM_H)
             inner = BoxLayout(orientation='horizontal', size_hint=(1, 1),
+                              pos_hint={'x': 0, 'y': 0},
                               padding=[dp(14), 0], spacing=dp(10))
             inner.add_widget(MDIconButton(
                 icon=icon, theme_icon_color='Custom', disabled=True,
