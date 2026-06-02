@@ -678,61 +678,62 @@ class TemperatureMapCard(_BaseCard):
 # Main grid assembler
 # ──────────────────────────────────────────────
 
-class DetailCardsGrid(GridLayout):
-    """2-column grid of all detail cards."""
+class DetailCardsSection(BoxLayout):
+    """Full-width cards (AQ, Temp Map) followed by 2-col grid of smaller cards."""
+
     def __init__(self, data: WeatherData, **kwargs):
-        super().__init__(cols=2, spacing=dp(10), size_hint_y=None, **kwargs)
-        self._build(data)
+        super().__init__(orientation='vertical', size_hint_y=None,
+                         spacing=dp(10), **kwargs)
         self.bind(minimum_height=self.setter('height'))
+        self._build(data)
 
     def _build(self, data: WeatherData):
         c = data.current
         today = data.daily[0] if data.daily else None
 
-        # Air Quality
+        # ── FULL-WIDTH cards ──────────────────────────────────────────
         if data.air_quality:
-            self.add_widget(AirQualityCard(aq=data.air_quality))
-        else:
-            self.add_widget(Widget(size_hint_y=None, height=dp(150)))
+            self.add_widget(AirQualityCard(aq=data.air_quality,
+                                           size_hint=(1, None), height=dp(165)))
 
-        # Temperature Map
         self.add_widget(TemperatureMapCard(
             lat=getattr(data, '_lat', 35.37),
             lon=getattr(data, '_lon', -81.96),
             city=data.location_zip,
             temp=c.temp,
+            size_hint=(1, None), height=dp(165),
         ))
 
-        # UV Index
-        self.add_widget(UVIndexCard(uv=c.uv))
+        # ── 2-column grid for smaller info cards ──────────────────────
+        grid = GridLayout(cols=2, spacing=dp(10), size_hint_y=None)
+        grid.bind(minimum_height=grid.setter('height'))
 
-        # Sunset / Sunrise
+        grid.add_widget(UVIndexCard(uv=c.uv))
+
         sunset_str = data.today_sunset() or '—'
         sunrise_str = data.today_sunrise() or '—'
         sun_prog = data.sun_progress()
-        self.add_widget(SunsetCard(sunset=sunset_str, sunrise=sunrise_str, progress=sun_prog))
+        grid.add_widget(SunsetCard(sunset=sunset_str, sunrise=sunrise_str, progress=sun_prog))
 
-        # Wind
-        self.add_widget(WindCard(speed=c.wind_speed, direction_deg=c.wind_dir))
+        grid.add_widget(WindCard(speed=c.wind_speed, direction_deg=c.wind_dir))
 
-        # Rainfall
         precip_24h = today.precip_sum if today else 0.0
-        hourly_precip = sum(h.precip for h in data.hourly[:24]) if data.hourly else 0.0
-        self.add_widget(RainfallCard(last_24h=c.precip, next_24h=precip_24h))
+        grid.add_widget(RainfallCard(last_24h=c.precip, next_24h=precip_24h))
 
-        # Feels Like — dew point approximation: T - (100 - RH)/5
         dew_approx = round(c.temp - (100 - c.humidity) / 5)
-        self.add_widget(FeelsLikeCard(
+        grid.add_widget(FeelsLikeCard(
             feels=c.feels_like, actual=c.temp,
             humidity=c.humidity, wind=c.wind_speed,
         ))
 
-        # Humidity
-        self.add_widget(HumidityCard(humidity=c.humidity, dew_point=dew_approx))
+        grid.add_widget(HumidityCard(humidity=c.humidity, dew_point=dew_approx))
+        grid.add_widget(VisibilityCard(miles=c.visibility))
 
-        # Visibility
-        self.add_widget(VisibilityCard(miles=c.visibility))
+        pressure_trend_label = pressure_trend(data.hourly, c.pressure) if data.hourly else 'Steady'
+        grid.add_widget(PressureCard(pressure_hpa=c.pressure, trend=pressure_trend_label))
 
-        # Pressure
-        trend = pressure_trend(data.hourly, c.pressure) if data.hourly else 'Steady'
-        self.add_widget(PressureCard(pressure_hpa=c.pressure, trend=trend))
+        self.add_widget(grid)
+
+
+# Keep old name as alias so weather_detail.py import still works
+DetailCardsGrid = DetailCardsSection

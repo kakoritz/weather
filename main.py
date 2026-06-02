@@ -154,8 +154,20 @@ class WeatherApp(MDApp):
         self.sm.current = 'add_location'
 
     def _on_search_add(self, location: Location):
-        """Called when user picks a city from the location list search bar."""
-        self._on_location_added(location)
+        """Called when user picks a city from the location list search bar.
+        Adds the location and STAYS on the list — user may want to add more.
+        """
+        self.storage.add_location(location)
+        if self.sm.has_screen('weather_carousel'):
+            carousel = self.sm.get_screen('weather_carousel')
+            carousel.add_location(location)
+        else:
+            # First location — build main screens
+            locations = self.storage.load_locations()
+            self._build_main_screens(locations)
+            return
+        self._rebuild_list_screen()
+        # Stay on location_list (do NOT navigate to weather_carousel)
 
     def _on_delete_location(self, zip_code: str):
         self.storage.remove_location(zip_code)
