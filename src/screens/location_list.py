@@ -234,33 +234,30 @@ class _LocationCard(BoxLayout):
             return True
 
 
-# ── Dropdown menu (pops out from button) ─────────────────────────────────────
+# ── Dropdown menu ────────────────────────────────────────────────────────────
+# Plain Python class — NOT a Kivy widget. Adds dim + card DIRECTLY to Window
+# so there is zero FloatLayout involvement and zero coordinate-system ambiguity.
+# MDScreen extends RelativeLayout; widget.pos inside it is RELATIVE not absolute,
+# so btn.to_window() returns wrong values. We anchor to Window dimensions instead.
 
-class _DropdownMenu(FloatLayout):
-    """Compact dropdown anchored just below the ⋯ button."""
+class _DropdownMenu:
+    """Dim + card added directly to Window. No FloatLayout wrapper."""
 
-    def __init__(self, menu_x, menu_y, storage, on_close,
-                 on_edit_list, current_units='F', **kwargs):
-        super().__init__(size_hint=(1, 1), **kwargs)
+    def __init__(self, menu_x, menu_y, storage, on_close, on_edit_list,
+                 current_units='F'):
+        from kivy.core.window import Window
+        from kivy.uix.button import Button as _Btn
 
-        from kivy.core.window import Window as _W
-
-        # Full-screen dim — tap outside to close
-        dim = Widget(size_hint=(1, 1))
-        with dim.canvas:
-            Color(0, 0, 0, 0.25)
-            _d = Rectangle(pos=dim.pos, size=dim.size)
-        dim.bind(pos=lambda w, v, r=_d: setattr(r, 'pos', v),
-                 size=lambda w, v, r=_d: setattr(r, 'size', v))
-        self.add_widget(dim)
+        self._storage = storage
+        self._on_close = on_close
 
         MENU_W = dp(280)
         ITEM_H = dp(46)
         ITEMS = [
             ('playlist-edit', 'Edit List',       on_edit_list),
             None,
-            ('thermometer', 'Fahrenheit °F', lambda: self._set_unit('F', storage, on_close)),
-            ('thermometer', 'Celsius °C',    lambda: self._set_unit('C', storage, on_close)),
+            ('thermometer', 'Fahrenheit °F', lambda: self._set_unit('F', on_close)),
+            ('thermometer', 'Celsius °C',    lambda: self._set_unit('C', on_close)),
             None,
             ('bell-outline',  'Notifications',   on_close),
             ('flag-outline',  'Report an Issue', on_close),
@@ -269,28 +266,38 @@ class _DropdownMenu(FloatLayout):
         n_seps   = sum(1 for x in ITEMS if x is None)
         MENU_H = n_items * ITEM_H + n_seps * dp(1) + dp(10)
 
-        # Absolute pos — FloatLayout.do_layout never changes pos when pos_hint is absent.
-        # The parent FloatLayout must be explicitly sized to Window dimensions (done in
-        # _do_open_menu) so the dim widget fills the screen correctly.
-        menu = BoxLayout(orientation='vertical',
-                         size_hint=(None, None),
-                         size=(MENU_W, MENU_H),
-                         pos=(menu_x, menu_y),
-                         padding=[0, dp(6)])
-        self._menu_rect = menu
+        # ── Dim — explicit size, sits directly in Window ──────────────
+        self._dim = Widget(size=(Window.width, Window.height), pos=(0, 0))
+        with self._dim.canvas:
+            Color(0, 0, 0, 0.30)
+            Rectangle(pos=(0, 0), size=(Window.width, Window.height))
 
-        with menu.canvas.before:
+        # ── Card — positioned directly, no parent layout to interfere ─
+        self._card = BoxLayout(
+            orientation='vertical',
+            size_hint=(None, None),
+            size=(MENU_W, MENU_H),
+            pos=(menu_x, menu_y),
+            padding=[0, dp(6)],
+        )
+        with self._card.canvas.before:
             Color(0.12, 0.14, 0.20, 0.97)
-            _mbg = RoundedRectangle(pos=menu.pos, size=menu.size, radius=[dp(12)])
-        menu.bind(
-            pos=lambda w, v, r=_mbg: setattr(r, 'pos', v),
-            size=lambda w, v, r=_mbg: setattr(r, 'size', v),
+            _cbg = RoundedRectangle(pos=self._card.pos, size=self._card.size,
+                                    radius=[dp(12)])
+        self._card.bind(
+            pos=lambda w, v, r=_cbg: setattr(r, 'pos', v),
+            size=lambda w, v, r=_cbg: setattr(r, 'size', v),
         )
 
-        # Close when tapping outside the menu card
-        dim.bind(on_touch_down=lambda w, t: on_close()
-                 if not self._menu_rect.collide_point(*t.pos) else None)
+        # Tap outside card → close
+        _card_ref = self._card
+        def _dim_touch(w, touch):
+            if not _card_ref.collide_point(*touch.pos):
+                on_close()
+                return True
+        self._dim.bind(on_touch_down=_dim_touch)
 
+        # ── Menu items ────────────────────────────────────────────────
         for item in ITEMS:
             if item is None:
                 sep = Widget(size_hint_y=None, height=dp(1))
@@ -299,58 +306,55 @@ class _DropdownMenu(FloatLayout):
                     _sr = Rectangle(pos=sep.pos, size=sep.size)
                 sep.bind(pos=lambda w, v, r=_sr: setattr(r, 'pos', v),
                          size=lambda w, v, r=_sr: setattr(r, 'size', (v[0], 1)))
-                menu.add_widget(sep)
+                self._card.add_widget(sep)
                 continue
 
             icon, label, cb = item
-            is_checked = (label == 'Fahrenheit °F' and current_units == 'F') or \
-                         (label == 'Celsius °C'    and current_units == 'C')
+            is_checked = ((label == 'Fahrenheit °F' and current_units == 'F') or
+                          (label == 'Celsius °C'    and current_units == 'C'))
 
-            # FloatLayout row: content BoxLayout + transparent Button overlay
-            # The Button must be in a FloatLayout so it gets full area, not zero
             row_fl = FloatLayout(size_hint_y=None, height=ITEM_H)
-
             inner = BoxLayout(orientation='horizontal', size_hint=(1, 1),
                               padding=[dp(14), 0], spacing=dp(10))
-
-            icon_w = MDIconButton(
+            inner.add_widget(MDIconButton(
                 icon=icon, theme_icon_color='Custom', disabled=True,
                 icon_color=(0.30, 0.70, 1, 1) if is_checked else (1, 1, 1, 0.55),
                 icon_size=dp(18), size_hint=(None, 1), width=dp(30),
-            )
-            inner.add_widget(icon_w)
-
+            ))
             lbl = Label(text=label, font_size=sp(15), bold=False,
                         color=(0.30, 0.70, 1, 1) if is_checked else (1, 1, 1, 0.90),
                         size_hint=(1, 1), halign='left', valign='middle',
                         text_size=(MENU_W - dp(80), None))
             inner.add_widget(lbl)
-
             if is_checked:
-                ck = MDIconButton(
+                inner.add_widget(MDIconButton(
                     icon='check', theme_icon_color='Custom', disabled=True,
                     icon_color=(0.30, 0.70, 1, 1), icon_size=dp(18),
                     size_hint=(None, 1), width=dp(30),
-                )
-                inner.add_widget(ck)
-
+                ))
             row_fl.add_widget(inner)
-
-            # Transparent Button covers ENTIRE FloatLayout — guaranteed full-row tap
-            from kivy.uix.button import Button as _Btn
             _cb = cb
-            tap = _Btn(size_hint=(1, 1), pos_hint={'x': 0, 'y': 0},
-                       background_normal='', background_color=(0, 0, 0, 0),
-                       on_release=lambda b, fn=_cb: fn())
-            row_fl.add_widget(tap)
-            menu.add_widget(row_fl)
+            row_fl.add_widget(_Btn(
+                size_hint=(1, 1), pos_hint={'x': 0, 'y': 0},
+                background_normal='', background_color=(0, 0, 0, 0),
+                on_release=lambda b, fn=_cb: fn(),
+            ))
+            self._card.add_widget(row_fl)
 
-        self.add_widget(menu)
+        # Dim first (lower z), card on top — Window renders last-added on top
+        Window.add_widget(self._dim)
+        Window.add_widget(self._card)
 
-    def _set_unit(self, unit: str, storage, on_close):
-        if storage:
-            storage.set_units(unit)
+    def _set_unit(self, unit: str, on_close):
+        if self._storage:
+            self._storage.set_units(unit)
         on_close()
+
+    def remove(self):
+        from kivy.core.window import Window
+        for w in (self._dim, self._card):
+            if w.parent:
+                w.parent.remove_widget(w)
 
 
 # ── Main screen ───────────────────────────────────────────────────────────────
@@ -544,39 +548,29 @@ class LocationListScreen(MDScreen):
 
     def _do_open_menu(self, dt):
         self._menu_open = True
-        from kivy.core.window import Window
+        from kivy.core.window import Window, Logger
 
         units = self._storage.get_units() if self._storage else 'F'
-        btn = self._menu_btn
 
         MENU_W = dp(280)
-        MENU_H = 5 * dp(46) + 2 * dp(1) + dp(10)   # 5 items + 2 separators
+        MENU_H = 5 * dp(46) + 2 * dp(1) + dp(10)
 
-        # btn.to_window(0, 0) = button's bottom-left corner in Window coordinates
-        bx, by = btn.to_window(0, 0)
-        # Drop menu below the button, right-aligned to its right edge
-        menu_x = bx + btn.width - MENU_W
-        menu_y = by - MENU_H - dp(4)
-        menu_x = max(dp(8), min(menu_x, Window.width - MENU_W - dp(8)))
-        menu_y = max(dp(8), menu_y)
+        # MDScreen (RelativeLayout) stores widget.pos in RELATIVE coords so
+        # btn.to_window() returns wrong values. Anchor to Window dimensions instead.
+        # Header height = dp(130), gap below header = dp(8).
+        menu_x = Window.width - MENU_W - dp(8)
+        menu_y = Window.height - dp(130) - MENU_H - dp(8)
 
-        from kivy.core.window import Logger
-        Logger.info(f'MENU: btn to_window bx={bx:.0f} by={by:.0f} '
-                    f'menu_x={menu_x:.0f} menu_y={menu_y:.0f} '
-                    f'Win={Window.width}x{Window.height} MENU_H={MENU_H:.0f}')
+        Logger.info(f'MENU: Win={Window.width}x{Window.height} '
+                    f'MENU_H={MENU_H:.0f} pos=({menu_x:.0f},{menu_y:.0f})')
 
-        menu = _DropdownMenu(
+        self._menu_widget = _DropdownMenu(
             menu_x=menu_x, menu_y=menu_y,
             storage=self._storage,
             on_close=self._close_menu,
             on_edit_list=self._toggle_edit,
             current_units=units,
         )
-        # Explicit size so dim fills Window and layout uses correct reference frame
-        menu.size = (Window.width, Window.height)
-        menu.pos = (0, 0)
-        self._menu_widget = menu
-        Window.add_widget(menu)
 
     def _toggle_edit(self):
         """Called from Edit List menu item — close menu then enter edit mode."""
@@ -586,10 +580,9 @@ class LocationListScreen(MDScreen):
 
     def _close_menu(self):
         self._menu_open = False
-        if hasattr(self, '_menu_widget'):
-            if self._menu_widget.parent:
-                self._menu_widget.parent.remove_widget(self._menu_widget)
-        # Refresh units and rebuild if changed
+        if hasattr(self, '_menu_widget') and self._menu_widget:
+            self._menu_widget.remove()
+            self._menu_widget = None
         new_units = self._storage.get_units() if self._storage else 'F'
         if new_units != self._units:
             self._units = new_units
