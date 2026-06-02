@@ -11,7 +11,7 @@ permissions:
 jobs:
   build-apk:
     runs-on: ubuntu-22.04
-    timeout-minutes: 90
+    timeout-minutes: 120
 
     steps:
       - uses: actions/checkout@v4
@@ -32,26 +32,34 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y \
             git zip unzip autoconf libtool pkg-config \
-            zlib1g-dev cmake libffi-dev libssl-dev libltdl-dev
+            zlib1g-dev cmake libffi-dev libssl-dev libltdl-dev \
+            libcairo2-dev python3-dev
 
-      - name: Install buildozer and Cython
-        run: pip install 'buildozer>=1.5' 'cython>=3' pillow
+      - name: Install buildozer and tools
+        run: pip install 'buildozer>=1.5' 'cython==0.29.37' pillow cairosvg
 
       - name: Cache buildozer downloads
         uses: actions/cache@v4
         with:
           path: ~/.buildozer
-          key: buildozer-kivy-v1-${{ hashFiles('buildozer.spec') }}
+          key: buildozer-kivy-py311-v4-${{ hashFiles('buildozer.spec', 'custom_recipes/**') }}
           restore-keys: |
-            buildozer-kivy-v1-
+            buildozer-kivy-py311-v4-
 
-      - name: Patch build_dir for CI runner
+      - name: Clone p4a pinned to Python 3.11.13 era (commit 3762c88c)
         run: |
-          # Local spec uses /home/kakoritz which doesn't exist in CI.
-          # Override to the runner's home directory.
-          sed -i 's|build_dir = /home/kakoritz/.weatherapp-build|build_dir = /home/runner/.weatherapp-build|' buildozer.spec
+          git clone --depth=200 https://github.com/kivy/python-for-android.git ~/.p4a-py311
+          cd ~/.p4a-py311 && git checkout 3762c88c
 
-      - name: Generate assets (icon + presplash)
+      - name: Patch p4a recipe.py for no-isolation + dist-info cleanup
+        run: python ci_patch_p4a.py
+
+      - name: Patch buildozer.spec for CI environment
+        run: |
+          sed -i 's|build_dir = /home/kakoritz/.weatherapp-build|build_dir = /home/runner/.weatherapp-build|' buildozer.spec
+          sed -i 's|p4a.source_dir.*=.*|p4a.source_dir = /home/runner/.p4a-py311|' buildozer.spec
+
+      - name: Generate assets (icon + presplash + weather icons)
         run: python create_assets.py
 
       - name: Build debug APK
