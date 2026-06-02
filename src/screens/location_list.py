@@ -551,6 +551,12 @@ class LocationListScreen(MDScreen):
         self._menu_widget = menu
         Window.add_widget(menu)
 
+    def _toggle_edit(self):
+        """Called from Edit List menu item — close menu then enter edit mode."""
+        self._close_menu()
+        # Edit mode: rebuild cards with swipe-to-delete hint more visible
+        # (swipe-to-delete already works without a separate mode — this is a no-op stub)
+
     def _close_menu(self):
         self._menu_open = False
         if hasattr(self, '_menu_widget'):
