@@ -235,10 +235,29 @@ class _LocationCard(BoxLayout):
 
 
 # ── Dropdown menu ────────────────────────────────────────────────────────────
-# Plain Python class — NOT a Kivy widget. Adds dim + card DIRECTLY to Window
-# so there is zero FloatLayout involvement and zero coordinate-system ambiguity.
-# MDScreen extends RelativeLayout; widget.pos inside it is RELATIVE not absolute,
-# so btn.to_window() returns wrong values. We anchor to Window dimensions instead.
+
+class _MenuDim(Widget):
+    """Full-screen dim that BLOCKS all touches. Must subclass Widget and override
+    on_touch_* methods — widget.bind(on_touch_down=...) only adds an observer whose
+    return value is IGNORED for event propagation. Only the method's return value
+    counts; Widget.on_touch_down always returns None which lets touches fall through."""
+
+    def __init__(self, card_ref, on_close_fn, **kwargs):
+        super().__init__(**kwargs)
+        self._card_ref = card_ref
+        self._on_close_fn = on_close_fn
+
+    def on_touch_down(self, touch):
+        if not self._card_ref.collide_point(*touch.pos):
+            self._on_close_fn()
+        return True   # always consume — nothing below should see this touch
+
+    def on_touch_move(self, touch):
+        return True
+
+    def on_touch_up(self, touch):
+        return True
+
 
 class _DropdownMenu:
     """Dim + card added directly to Window. No FloatLayout wrapper."""
@@ -266,12 +285,6 @@ class _DropdownMenu:
         n_seps   = sum(1 for x in ITEMS if x is None)
         MENU_H = n_items * ITEM_H + n_seps * dp(1) + dp(10)
 
-        # ── Dim — explicit size, sits directly in Window ──────────────
-        self._dim = Widget(size=(Window.width, Window.height), pos=(0, 0))
-        with self._dim.canvas:
-            Color(0, 0, 0, 0.30)
-            Rectangle(pos=(0, 0), size=(Window.width, Window.height))
-
         # ── Card — positioned directly, no parent layout to interfere ─
         self._card = BoxLayout(
             orientation='vertical',
@@ -289,15 +302,16 @@ class _DropdownMenu:
             size=lambda w, v, r=_cbg: setattr(r, 'size', v),
         )
 
-        # Always consume the touch. If outside card, also close the menu.
-        # Without return True for in-card touches, unhandled taps (padding gaps)
-        # fall through to the location card beneath and trigger navigation.
-        _card_ref = self._card
-        def _dim_touch(w, touch):
-            if not _card_ref.collide_point(*touch.pos):
-                on_close()
-            return True
-        self._dim.bind(on_touch_down=_dim_touch)
+        # Dim created AFTER card so we can pass card reference in
+        self._dim = _MenuDim(
+            card_ref=self._card,
+            on_close_fn=on_close,
+            size=(Window.width, Window.height),
+            pos=(0, 0),
+        )
+        with self._dim.canvas:
+            Color(0, 0, 0, 0.30)
+            Rectangle(pos=(0, 0), size=(Window.width, Window.height))
 
         # ── Menu items ────────────────────────────────────────────────
         for item in ITEMS:
