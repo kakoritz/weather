@@ -816,21 +816,21 @@ class AlertBanner(BoxLayout):
 def _nowcast_summary(entries: list) -> str:
     if not entries:
         return ''
-    probs = [e.precip_prob for e in entries]
-    max_prob = max(probs)
-    if max_prob < 10:
-        return 'No rain expected next 2 hours.'
-    for i, p in enumerate(probs):
-        if p >= 20:
+    amounts = [e.precip for e in entries]
+    max_amt = max(amounts)
+    if max_amt < 0.005:
+        return 'No precipitation expected next 2 hours.'
+    for i, amt in enumerate(amounts):
+        if amt >= 0.005:
             if i == 0:
-                return f'Rain right now  ·  {max_prob}% chance.'
+                return f'Precipitation now  ·  {max_amt:.2f}" expected.'
             minutes = i * 15
             if minutes < 60:
-                return f'Rain possible in ~{minutes} min  ·  {max_prob}% peak.'
+                return f'Rain possible in ~{minutes} min  ·  {max_amt:.2f}" peak.'
             h, m = minutes // 60, minutes % 60
             t = f'{h}h {m}m' if m else f'{h}h'
-            return f'Rain possible in ~{t}  ·  {max_prob}% peak.'
-    return f'Slight chance of rain  ·  {max_prob}% peak.'
+            return f'Rain possible in ~{t}  ·  {max_amt:.2f}" peak.'
+    return f'Trace precipitation possible  ·  {max_amt:.3f}" peak.'
 
 
 class _PrecipBars(Widget):
