@@ -75,6 +75,23 @@ SIMD fix required for pygame is NOT needed here.
 UV, pressure, visibility, sunrise/sunset, hourly + daily). Actively maintained. Used in
 production by the kakoritz dashboard project already.
 
+### Precipitation Nowcast: Open-Meteo `minutely_15`
+**URL:** `https://api.open-meteo.com/v1/forecast?minutely_15=precipitation`
+**Why:** Free, no key. Returns 15-min precipitation amounts for up to 24h ahead. Used
+for the "Next 2 Hours" nowcast bar chart. Note: `precipitation_probability` is NOT
+available at minutely_15 resolution (hourly only); `moonrise`/`moonset` are also NOT
+valid Open-Meteo daily params (confirmed 400 error).
+
+### NWS Weather Alerts: api.weather.gov
+**URL:** `https://api.weather.gov/alerts/active?point={lat},{lon}`
+**Why:** Free, no API key, US only. Returns active watches/warnings/advisories. Non-US
+locations return a 404 or empty features array — handled gracefully. Max 3 alerts shown.
+
+### Temperature Map: Windy.com Embed
+**URL:** `https://embed.windy.com/embed2.html?lat=...&overlay=temp`
+**Why:** Free interactive temperature map, no API key for the embed. Opens in a native
+Android WebView Dialog (95% width, 85% height, cancelable with back button).
+
 ### Air Quality: Open-Meteo Air Quality API
 **URL:** `https://air-quality-api.open-meteo.com/v1/air-quality`
 **Why:** Same vendor as weather data, free, no key, returns US AQI directly.
@@ -190,25 +207,39 @@ Particles are drawn each frame via `Clock.schedule_interval(1/30)` on the Canvas
 | Daily day | `sp(18)` | Regular |
 | Daily temp | `sp(18)` | Bold |
 
-### Card inventory (WeatherDetailScreen, scrolling)
+### Card inventory (WeatherDetailWidget, scrolling inside blue details card)
 
-1. **Hero** — city, temperature, condition, H/L (not a card; full width, no border)
-2. **Summary** — text description of next 12 hours ("Partly cloudy from 9AM–12PM…")
-3. **Hourly** — horizontal ScrollView; `NOW` + hours; icon + temp per slot
-4. **10-Day Forecast** — vertical list; day name, icon, precip%, temperature range bar
-5. **Air Quality** — US AQI value, category label, description, color scale bar, "See More"
-6. **Temperature Map** — regional map with temp overlay [v2 — placeholder in v1]
-7. **UV Index** — numeric value, label (Low/Moderate/High), color scale bar, advisory text
-8. **Sunset** — sunset time (large), arc graphic (sun position), sunrise time
-9. **Wind** — compass rose, speed, direction (SSW/NNE etc.)
-10. **Rainfall** — current 24h accumulation, expected next 24h
+Full-width cards (top of scroll):
+1. **Alert Banner** — amber/red NWS alert rows (shown only when active alerts present)
+2. **Hourly** — horizontal ScrollView; `NOW` + 24h; condition icon + temp per slot; summary header
+3. **10-Day Forecast** — vertical list; day name, icon, precip%, temperature range bar
+4. **Nowcast** — "Next 2 Hours" bar chart at 15-min intervals; bars gray→blue by precipitation amount
+5. **Air Quality** — US AQI value, category, color scale bar, "See More" → detail modal
+6. **Temperature Map** — Windy.com embed via Android WebView dialog; "See More" opens it
+
+2-column grid (below full-width cards):
+7. **UV Index** — numeric value, label, color scale bar, advisory text
+8. **Sunset** — sunset time, arc graphic showing sun position, sunrise time
+9. **Wind** — compass rose with needle, speed, direction label
+10. **Rainfall** — last 24h accumulation, expected next 24h
 11. **Feels Like** — apparent temperature, plain-English reason
 12. **Humidity** — percentage, dew point
 13. **Visibility** — miles, plain-English descriptor
-14. **Pressure** — gauge arc graphic, inHg value, trend (rising/falling)
+14. **Pressure** — gauge arc graphic, inHg value, trend (rising/falling/steady)
 
-Cards 5–14 are arranged in a 2-column grid (`GridLayout cols=2`).
-Cards 1–4 are full-width above the grid.
+### Layout architecture (v1.1.0)
+
+```
+WeatherDetailWidget (FloatLayout, black background)
+  └── BoxLayout (vertical, padding=[dp(12), dp(12), dp(12), dp(80)])
+       ├── Hero card (FloatLayout, stencil-clip dp(18) radius, animated bg)
+       ├── Widget (spacer dp(8))
+       └── Details card (BoxLayout, blue #1A2947, stencil-clip dp(18) radius)
+            └── ScrollView
+                 └── All data cards listed above
+```
+
+The dp(80) bottom padding gives clearance for the dp(52) nav bar + breathing room.
 
 ---
 
@@ -265,27 +296,52 @@ The `android.yml` workflow:
 
 ---
 
+## Breezy-Weather Learnings (v1.1.0+)
+
+[breezy-weather](https://github.com/breezy-weather/breezy-weather) is a production
+Kotlin/Android weather app studied as a UX and feature reference in 2026-06.
+
+### Implemented from Breezy (v1.1.0)
+- **Precipitation nowcasting** — 15-min bar chart ("Next 2 Hours"). Breezy shows this
+  as their highest-signal card; we implemented using Open-Meteo `minutely_15`.
+- **NWS weather alerts** — Breezy supports 5+ alert sources. We implemented US NWS only
+  (free, no key) as an amber banner at top of scroll.
+- **Floating card layout** — Inspired by breezy's Material 3 block-style cards.
+
+### On the Backlog from Breezy
+- **Moon rise/set times** — Breezy computes these locally using astronomical algorithms.
+  Open-Meteo does NOT provide them. Implementation: use `ephem` or pure-Python calculation
+  from lat/lon. Fields (`moonrise`, `moonset`) already exist in `DailyForecast` model.
+- **Pollen/allergen data** — Copernicus free API. High value for allergy sufferers.
+- **Climate normals** — "5° above normal" context. Open-Meteo has historical data endpoint.
+- **Reorderable cards** — Drag to reorder the detail card grid. Nice polish, medium effort.
+- **Precipitation radar** — Breezy defers to Windy/RainViewer; we already do Windy for temp.
+
+### Breezy Animation Approach (future reference)
+Breezy implements 7 canvas-based weather animation `implementors` (Rain, Snow, Hail,
+Cloud, Wind, Sun, Meteor Shower) with frame interpolation and accelerometer input.
+See: `breezy-weather/app/src/main/java/org/breezyweather/ui/weather/view/materialWeatherView/`
+Our particle system in `src/widgets/weather_overlay.py` uses a similar approach but
+without gravity/sensor input. Sensor-driven animations are a v2+ consideration.
+
+---
+
 ## Future Work (v1.x / v2.0)
 
 ### v1.x
-
-- **Temperature map card** — WebView with OpenWeatherMap raster tile layers + OSM base
-- **"See More" for Air Quality** — expand card to show PM2.5, PM10, O3, NO2 breakdown
+- **Moon rise/set** — astronomical calculation from lat/lon (no API needed)
+- **Pollen card** — Copernicus free pollen API (PM, grass, tree, weed counts)
 - **"See More" for UV** — 24h UV curve chart using Kivy Canvas
 - **"See More" for Pressure** — 24h pressure trend line chart
-- **Precipitation chart** — hourly rain probability bar chart
 - **Push notifications** — weather alerts via Android WorkManager (requires Kotlin bridge)
-- **Widget** — Android home screen widget showing current temp + condition
-- **Unit toggle** — °F / °C, mph / km/h, in / mm
-- **Dark/light background** — user override separate from time-of-day logic
+- **Unit toggle** — °F / °C stored per-location, toggleable from menu (C/F already in menu)
 
 ### v2.0
-
-- **Weather map screen** — full-screen interactive map with temperature/precipitation/wind
-  layers; tap map icon in bottom nav to access
-- **Severe weather alerts** — NWS CAP/ATOM alerts for US locations
+- **Weather map screen** — full-screen Windy embed in bottom nav
+- **Climate normals** — "5° above normal for this date" context in hero card
+- **Reorderable detail cards** — drag to rearrange the grid
 - **Historical data** — past 7 days charts
-- **Multi-language** — internationalization via Kivy's i18n system
+- **Sensor-driven animations** — accelerometer input for gravity-aware particle effects
 - **iPad / tablet layout** — side-by-side location list + detail
 
 ---

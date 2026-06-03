@@ -51,27 +51,38 @@ Version lives in one place: `buildozer.spec` (`version = X.Y.Z`) and the top of
 
 ## Project Facts
 
-- **Language:** Python 3.10+ (CI: 3.10, local: 3.12 — both work)
+- **Language:** Python 3.11.13 (pinned — p4a master defaults to 3.14 which breaks Kivy)
 - **UI Framework:** Kivy 2.3.0 + KivyMD 1.2.0
 - **Build system:** buildozer 1.6.0 (venv at `~/.buildozer-env/`)
 - **Build dir:** `/home/kakoritz/.weatherapp-build` (NOT on NAS — local disk only)
 - **Entry point:** `main.py`
 - **Test runner:** pytest (run with `pytest tests/ -v`)
-- **Android target:** API 34 / min API 24 / NDK 25b / arm64-v8a
+- **Android target:** API 34 / min API 24 / NDK **25b** / arm64-v8a
 - **Package name:** `org.kakoritz.weatherapp`
 - **GitHub repo:** `git@github.com:kakoritz/weather.git`
+- **p4a:** commit `3762c88c` at `~/.p4a-py311/` (NEVER update this checkout)
+- **Version:** `1.1.0` (in `buildozer.spec` AND `main.py` — must match)
 
 ---
 
 ## Architecture
 
-The app is a `MDApp` with a `ScreenManager` containing three screens:
-`AddLocationScreen` (initial empty state), `WeatherCarouselScreen` (main view with
-Kivy `Carousel` widget holding one `WeatherDetailWidget` per location), and
-`LocationListScreen` (list view accessed via bottom-bar icon).
+The app is a `MDApp` with a `ScreenManager` (NoTransition) containing two screens:
+`WeatherCarouselScreen` (main view with Kivy `Carousel` widget holding one
+`WeatherDetailWidget` per location) and `LocationListScreen` (list view with search bar,
+accessed via bottom-bar icon). There is no separate AddLocationScreen — the search bar
+is built into the list screen.
+
+`WeatherDetailWidget` uses a floating card layout: pure-black master background,
+hero `FloatLayout` floating with dp(12) margins and animated weather background, deep
+blue details `BoxLayout` below containing the ScrollView with all data cards.
 
 Weather data is fetched in background threads and delivered to the UI via
 `Clock.schedule_once(callback, 0)`. All data is cached as JSON in `user_data_dir`.
+
+**Key UI lesson:** `MDScreen` extends `RelativeLayout`. Widget `pos` inside it is
+RELATIVE, not absolute window coordinates. Never use `widget.to_window()` for menu/
+popup positioning — anchor to `Window.width/height` directly.
 
 ---
 
@@ -100,7 +111,7 @@ src/
     weather_bg.py             ← WeatherBackground: Canvas gradient + particle animations
     hourly_card.py            ← HourlyForecastCard: horizontal ScrollView strip
     daily_forecast.py         ← DailyForecastCard: 10-day vertical list
-    detail_cards.py           ← DetailCardsGrid: 2-col grid of info cards
+    detail_cards.py           ← DetailCardsGrid: NowcastCard, AlertBanner, AQ, 2-col grid
   utils/
     wmo_codes.py              ← WMO weather code → (label, condition_key) mapping
 
@@ -176,10 +187,21 @@ Do not remove this header or the API will return 403.
 **NO pygame SIMD fix.** This project uses Kivy, not pygame. The `custom_recipes/pygame/`
 directory from the playbook is NOT present and NOT needed. Do not add it.
 
-**NDK 28c for both Kivy and pygame.** Initial assumption that Kivy needed 25b was wrong.
-p4a master (2026.05.09) recommends and requires NDK 28c. NDK 28c is already cached at
-`~/.buildozer/android/platform/android-ndk-r28c/` from the retris project. Use 28c for all
-projects on this machine.
+**NDK is 25b, NOT 28c.** NDK 28c removed `getgrent`/`setgrent`/`endgrent` from Android Bionic.
+Python 3.11's `grpmodule.c` calls these unconditionally. Build fails at the C compiler step.
+Use NDK 25b. The custom `custom_recipes/python3/` also patches `grpmodule.c` directly.
+
+**widget.bind(on_touch_down=...) return value is ignored.** Kivy's `bind()` adds an observer;
+observer return values do NOT affect event propagation. To block touch pass-through, subclass
+Widget and override `on_touch_down`/`on_touch_move`/`on_touch_up` methods returning True.
+See `_MenuDim` in `src/screens/location_list.py`.
+
+**MDScreen pos is RELATIVE.** `MDScreen → Screen → RelativeLayout`. `widget.pos` inside
+MDScreen is relative to the layout origin, not absolute window coordinates. Never use
+`widget.to_window()` for absolute positioning. Anchor menus/popups to `Window.width/height`.
+
+**Window.add_widget() does not auto-size.** Explicitly set `widget.size = (Window.width,
+Window.height)` before `Window.add_widget()` when the widget should fill the screen.
 
 **build_dir must be local.** `/home/kakoritz/.weatherapp-build` — NOT on the NAS share.
 buildozer writes thousands of small files; network shares cause extreme slowness and
