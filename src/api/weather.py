@@ -7,11 +7,12 @@ import requests
 
 from src.models.weather import (
     AirQualityData, CurrentConditions, DailyForecast,
-    HourlyEntry, WeatherData,
+    HourlyEntry, NowcastEntry, WeatherData,
 )
 
 _FORECAST_URL = 'https://api.open-meteo.com/v1/forecast'
 _AQ_URL = 'https://air-quality-api.open-meteo.com/v1/air-quality'
+_NWS_URL = 'https://api.weather.gov/alerts/active'
 _TIMEOUT = 10
 
 
@@ -32,8 +33,11 @@ def _build_forecast_params(lat: float, lon: float) -> dict:
         'daily': (
             'weather_code,temperature_2m_max,temperature_2m_min,'
             'precipitation_sum,precipitation_probability_max,'
-            'wind_speed_10m_max,uv_index_max,sunrise,sunset'
+            'wind_speed_10m_max,uv_index_max,sunrise,sunset,'
+            'moonrise,moonset'
         ),
+        'minutely_15': 'precipitation,precipitation_probability',
+        'forecast_minutely_15': 16,   # 4 hours at 15-min intervals
         'temperature_unit': 'fahrenheit',
         'windspeed_unit': 'mph',
         'precipitation_unit': 'inch',
@@ -76,21 +80,36 @@ def _parse_forecast(json: dict, zip_code: str) -> WeatherData:
     ]
 
     d = json['daily']
+    n_days = len(d['time'])
     daily = [
         DailyForecast(
             date=d['time'][i],
             max_temp=round(d['temperature_2m_max'][i]),
             min_temp=round(d['temperature_2m_min'][i]),
             precip_sum=d['precipitation_sum'][i] or 0.0,
-            precip_prob=int(d.get('precipitation_probability_max', [0]*10)[i] or 0),
+            precip_prob=int(d.get('precipitation_probability_max', [0]*n_days)[i] or 0),
             wind_max=round(d['wind_speed_10m_max'][i]),
             uv_max=d['uv_index_max'][i] or 0.0,
             sunrise=d['sunrise'][i],
             sunset=d['sunset'][i],
             code=int(d['weather_code'][i]),
+            moonrise=d.get('moonrise', [''] * n_days)[i] or '',
+            moonset=d.get('moonset', [''] * n_days)[i] or '',
         )
-        for i in range(len(d['time']))
+        for i in range(n_days)
     ]
+
+    # 15-min precipitation nowcast
+    nowcast = []
+    m15 = json.get('minutely_15', {})
+    if m15 and 'time' in m15:
+        probs = m15.get('precipitation_probability', [0] * len(m15['time']))
+        for i in range(min(16, len(m15['time']))):
+            nowcast.append(NowcastEntry(
+                time=m15['time'][i],
+                precip=m15['precipitation'][i] or 0.0,
+                precip_prob=int(probs[i] or 0),
+            ))
 
     return WeatherData(
         location_zip=zip_code,
@@ -98,6 +117,7 @@ def _parse_forecast(json: dict, zip_code: str) -> WeatherData:
         current=current,
         hourly=hourly,
         daily=daily,
+        nowcast=nowcast,
     )
 
 
@@ -113,6 +133,31 @@ def _parse_air_quality(json: dict) -> Optional[AirQualityData]:
         )
     except Exception:
         return None
+
+
+def _fetch_nws_alerts(lat: float, lon: float) -> list:
+    """Active NWS weather alerts for a US location. Returns [] outside US or on error."""
+    try:
+        resp = requests.get(
+            _NWS_URL,
+            params={'point': f'{lat:.4f},{lon:.4f}'},
+            headers={
+                'User-Agent': 'kakoritz-WeatherApp/1.1 (adam@adamscottspiker.org)',
+                'Accept': 'application/geo+json',
+            },
+            timeout=5,
+        )
+        if not resp.ok:
+            return []
+        alerts = []
+        for f in resp.json().get('features', [])[:3]:
+            props = f.get('properties', {})
+            headline = props.get('headline') or props.get('event', '')
+            if headline:
+                alerts.append(str(headline)[:100])
+        return alerts
+    except Exception:
+        return []
 
 
 def fetch_weather(
@@ -156,7 +201,13 @@ def fetch_weather(
             if aq_resp.ok:
                 data.air_quality = _parse_air_quality(aq_resp.json())
         except Exception:
-            pass  # air quality is non-critical; weather data is still returned
+            pass
+
+        # NWS alerts — US only, non-critical
+        try:
+            data.alerts = _fetch_nws_alerts(lat, lon)
+        except Exception:
+            pass
 
         on_success(data)
 

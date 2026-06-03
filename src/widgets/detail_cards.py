@@ -16,6 +16,8 @@ from kivy.uix.label import Label
 from kivy.uix.widget import Widget
 from kivy.clock import Clock
 
+from datetime import datetime
+
 from src.models.weather import (
     AirQualityData, WeatherData,
     wind_direction_label, pressure_trend, feels_like_reason, visibility_description,
@@ -770,6 +772,133 @@ class TemperatureMapCard(_BaseCard):
 
 
 # ──────────────────────────────────────────────
+# Alert Banner
+# ──────────────────────────────────────────────
+
+class AlertBanner(BoxLayout):
+    """Amber alert rows shown at the top of the details card when NWS alerts are active."""
+
+    def __init__(self, alerts: list, **kwargs):
+        super().__init__(orientation='vertical', size_hint=(1, None),
+                         spacing=dp(4), padding=[0, 0, 0, dp(4)], **kwargs)
+        self.bind(minimum_height=self.setter('height'))
+        from kivymd.uix.button import MDIconButton
+
+        for alert in alerts[:2]:
+            row = BoxLayout(orientation='horizontal', size_hint=(1, None),
+                            height=dp(42), padding=[dp(10), dp(4)])
+            with row.canvas.before:
+                Color(0.75, 0.22, 0.08, 0.95)
+                _rb = RoundedRectangle(pos=row.pos, size=row.size, radius=[dp(8)])
+            row.bind(
+                pos=lambda w, v, r=_rb: setattr(r, 'pos', v),
+                size=lambda w, v, r=_rb: setattr(r, 'size', v),
+            )
+            row.add_widget(MDIconButton(
+                icon='alert', theme_icon_color='Custom',
+                icon_color=(1.0, 0.90, 0.30, 1), icon_size=dp(18),
+                size_hint=(None, 1), width=dp(28),
+            ))
+            lbl = Label(
+                text=alert, font_size=sp(12), bold=False,
+                color=(1, 1, 1, 0.95), size_hint=(1, 1),
+                halign='left', valign='middle',
+            )
+            lbl.bind(size=lambda w, v: setattr(w, 'text_size', (v[0], None)))
+            row.add_widget(lbl)
+            self.add_widget(row)
+
+
+# ──────────────────────────────────────────────
+# Nowcast (15-min precipitation)
+# ──────────────────────────────────────────────
+
+def _nowcast_summary(entries: list) -> str:
+    if not entries:
+        return ''
+    probs = [e.precip_prob for e in entries]
+    max_prob = max(probs)
+    if max_prob < 10:
+        return 'No rain expected next 2 hours.'
+    for i, p in enumerate(probs):
+        if p >= 20:
+            if i == 0:
+                return f'Rain right now  ·  {max_prob}% chance.'
+            minutes = i * 15
+            if minutes < 60:
+                return f'Rain possible in ~{minutes} min  ·  {max_prob}% peak.'
+            h, m = minutes // 60, minutes % 60
+            t = f'{h}h {m}m' if m else f'{h}h'
+            return f'Rain possible in ~{t}  ·  {max_prob}% peak.'
+    return f'Slight chance of rain  ·  {max_prob}% peak.'
+
+
+class _PrecipBars(Widget):
+    def __init__(self, entries: list, **kwargs):
+        super().__init__(**kwargs)
+        self._entries = entries
+        self.bind(pos=self._draw, size=self._draw)
+
+    def _draw(self, *_):
+        self.canvas.clear()
+        entries = self._entries
+        if not entries or self.width < 1:
+            return
+        n = len(entries)
+        bar_w = self.width / n
+        gap = bar_w * 0.18
+        with self.canvas:
+            for i, e in enumerate(entries):
+                p = max(0, min(100, e.precip_prob)) / 100.0
+                bar_h = dp(4) + (self.height - dp(6)) * p
+                x = self.x + i * bar_w + gap
+                w = bar_w - 2 * gap
+                if p < 0.10:
+                    Color(0.40, 0.40, 0.45, 0.45)
+                elif p < 0.40:
+                    Color(0.30, 0.58, 0.88, 0.75)
+                else:
+                    Color(0.18, 0.42, 0.92, 0.95)
+                RoundedRectangle(pos=(x, self.y), size=(w, bar_h),
+                                 radius=[dp(3), dp(3), dp(3), dp(3)])
+
+
+class NowcastCard(_BaseCard):
+    def __init__(self, entries: list, **kwargs):
+        super().__init__(**kwargs)
+        # Taller than default dp(165) to fit bars + time row
+        self.height = dp(185)
+        first8 = entries[:8]
+
+        bars = _PrecipBars(entries=first8,
+                           size_hint=(None, None), size=(dp(240), dp(58)))
+        # Time labels matching each bar
+        time_row = BoxLayout(orientation='horizontal',
+                             size_hint=(None, None), size=(dp(240), dp(14)),
+                             padding=[dp(2), 0])
+        for e in first8:
+            try:
+                t = datetime.fromisoformat(e.time)
+                txt = t.strftime('%-I%p').lower() if t.minute == 0 else f':{t.strftime("%M")}'
+            except Exception:
+                txt = ''
+            lbl = Label(text=txt, font_size=sp(8), color=(1, 1, 1, 0.50),
+                        size_hint=(1, 1), halign='center', valign='top')
+            time_row.add_widget(lbl)
+
+        container = BoxLayout(orientation='vertical', size_hint=(None, None),
+                              size=(dp(240), dp(72)), spacing=0)
+        container.add_widget(bars)
+        container.add_widget(time_row)
+
+        self.build_sections(
+            'weather-pouring', 'Next 2 Hours',
+            [container],
+            footer_text=_nowcast_summary(first8),
+        )
+
+
+# ──────────────────────────────────────────────
 # Main grid assembler
 # ──────────────────────────────────────────────
 
@@ -787,6 +916,10 @@ class DetailCardsSection(BoxLayout):
         today = data.daily[0] if data.daily else None
 
         # ── FULL-WIDTH cards ──────────────────────────────────────────
+        if data.nowcast:
+            self.add_widget(NowcastCard(entries=data.nowcast,
+                                        size_hint=(1, None)))
+
         if data.air_quality:
             self.add_widget(AirQualityCard(aq=data.air_quality,
                                            size_hint=(1, None), height=dp(165)))

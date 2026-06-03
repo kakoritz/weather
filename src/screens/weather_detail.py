@@ -36,7 +36,7 @@ from src.utils.wmo_codes import get_label, get_condition, get_bg_path, get_icon_
 from src.widgets.weather_overlay import WeatherOverlay, overlay_for_night
 from src.widgets.hourly_card import HourlyForecastCard
 from src.widgets.daily_forecast import DailyForecastCard
-from src.widgets.detail_cards import DetailCardsGrid
+from src.widgets.detail_cards import AlertBanner, DetailCardsGrid
 
 # Day sky blue — the universal daytime background under all conditions
 _DAY_SKY = (0.22, 0.60, 0.86, 1)
@@ -364,11 +364,31 @@ class WeatherDetailWidget(FloatLayout):
             hl_lbl.bind(size=hl_lbl.setter('text_size'))
             text_layer.add_widget(hl_lbl)
 
-        # Moon phase name + illumination — small text below condition, night only
+        # Moon phase name + illumination + rise/set — night only
         if night:
             moon_name, _mp, moon_illum = get_moon_phase()
+            today = w.daily[0] if w.daily else None
+
+            def _fmt_moon_time(iso: str) -> str:
+                try:
+                    from datetime import datetime as _dt
+                    return _dt.fromisoformat(iso).strftime('%-I:%M %p').lstrip('0')
+                except Exception:
+                    return ''
+
+            rise_str = _fmt_moon_time(today.moonrise) if today and today.moonrise else ''
+            set_str  = _fmt_moon_time(today.moonset)  if today and today.moonset  else ''
+
+            parts = [f'{moon_name}  ·  {moon_illum}% illuminated']
+            if rise_str and set_str:
+                parts.append(f'Moonrise {rise_str}  ·  Moonset {set_str}')
+            elif rise_str:
+                parts.append(f'Moonrise {rise_str}')
+            elif set_str:
+                parts.append(f'Moonset {set_str}')
+
             moon_sub = Label(
-                text=f'{moon_name}  ·  {moon_illum}% illuminated',
+                text='  '.join(parts),
                 font_size=sp(12), color=(1, 1, 1, 0.65),
                 size_hint_y=None, height=dp(20),
                 halign='center', valign='middle',
@@ -415,6 +435,10 @@ class WeatherDetailWidget(FloatLayout):
                 padded.bind(minimum_height=padded.setter('height'))
             padded.add_widget(widget)
             self._content.add_widget(padded)
+
+        # ── Active weather alerts ──────────────────────────────────────
+        if w.alerts:
+            add_card(AlertBanner(alerts=w.alerts))
 
         # ── Hourly strip (with summary text as its header) ────────────
         next_hours = w.next_24_hours()
