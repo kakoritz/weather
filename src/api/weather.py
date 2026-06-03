@@ -33,10 +33,9 @@ def _build_forecast_params(lat: float, lon: float) -> dict:
         'daily': (
             'weather_code,temperature_2m_max,temperature_2m_min,'
             'precipitation_sum,precipitation_probability_max,'
-            'wind_speed_10m_max,uv_index_max,sunrise,sunset,'
-            'moonrise,moonset'
+            'wind_speed_10m_max,uv_index_max,sunrise,sunset'
         ),
-        'minutely_15': 'precipitation,weather_code',
+        'minutely_15': 'precipitation',
         'forecast_minutely_15': 16,   # 4 hours at 15-min intervals
         'temperature_unit': 'fahrenheit',
         'windspeed_unit': 'mph',
@@ -93,8 +92,6 @@ def _parse_forecast(json: dict, zip_code: str) -> WeatherData:
             sunrise=d['sunrise'][i],
             sunset=d['sunset'][i],
             code=int(d['weather_code'][i]),
-            moonrise=d.get('moonrise', [''] * n_days)[i] or '',
-            moonset=d.get('moonset', [''] * n_days)[i] or '',
         )
         for i in range(n_days)
     ]

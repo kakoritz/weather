@@ -364,31 +364,11 @@ class WeatherDetailWidget(FloatLayout):
             hl_lbl.bind(size=hl_lbl.setter('text_size'))
             text_layer.add_widget(hl_lbl)
 
-        # Moon phase name + illumination + rise/set — night only
+        # Moon phase name + illumination — night only
         if night:
             moon_name, _mp, moon_illum = get_moon_phase()
-            today = w.daily[0] if w.daily else None
-
-            def _fmt_moon_time(iso: str) -> str:
-                try:
-                    from datetime import datetime as _dt
-                    return _dt.fromisoformat(iso).strftime('%-I:%M %p').lstrip('0')
-                except Exception:
-                    return ''
-
-            rise_str = _fmt_moon_time(today.moonrise) if today and today.moonrise else ''
-            set_str  = _fmt_moon_time(today.moonset)  if today and today.moonset  else ''
-
-            parts = [f'{moon_name}  ·  {moon_illum}% illuminated']
-            if rise_str and set_str:
-                parts.append(f'Moonrise {rise_str}  ·  Moonset {set_str}')
-            elif rise_str:
-                parts.append(f'Moonrise {rise_str}')
-            elif set_str:
-                parts.append(f'Moonset {set_str}')
-
             moon_sub = Label(
-                text='  '.join(parts),
+                text=f'{moon_name}  ·  {moon_illum}% illuminated',
                 font_size=sp(12), color=(1, 1, 1, 0.65),
                 size_hint_y=None, height=dp(20),
                 halign='center', valign='middle',
