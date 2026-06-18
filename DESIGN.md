@@ -23,8 +23,10 @@ is 1:1; the stack is different.
 1. **No API keys.** Every data source must work with zero credentials. No secrets in repo,
    no keys to rotate, no rate limits from forgotten env vars. Builds and runs on a fresh clone.
 
-2. **Gesture-first navigation.** Primary interaction is swipe left/right between locations.
-   The bottom bar is supplementary. On Android, taps are cheap; swipes are the experience.
+2. **Tap-arrow navigation (revised from original swipe-first plan).** Swipe between
+   locations was the original v1.0 intent but was fully disabled (`_WeatherCarousel.
+   on_touch_move` returns `False` unconditionally) in favor of explicit left/right arrow
+   buttons at the top of the hero. Bottom bar dots show position and are also tappable.
 
 3. **Always-current data.** Weather is cached for 10 minutes then silently refreshed in a
    background thread. The user never sees a spinner if cached data exists.
@@ -74,13 +76,9 @@ SIMD fix required for pygame is NOT needed here.
 **Why:** Free, no API key, HTTPS, returns all fields needed (temperature, humidity, wind,
 UV, pressure, visibility, sunrise/sunset, hourly + daily). Actively maintained. Used in
 production by the kakoritz dashboard project already.
-
-### Precipitation Nowcast: Open-Meteo `minutely_15`
-**URL:** `https://api.open-meteo.com/v1/forecast?minutely_15=precipitation`
-**Why:** Free, no key. Returns 15-min precipitation amounts for up to 24h ahead. Used
-for the "Next 2 Hours" nowcast bar chart. Note: `precipitation_probability` is NOT
-available at minutely_15 resolution (hourly only); `moonrise`/`moonset` are also NOT
-valid Open-Meteo daily params (confirmed 400 error).
+**Gotcha:** `moonrise`/`moonset` are NOT valid Open-Meteo daily params (confirmed 400
+error) despite existing as fields on the `DailyForecast` model — moon phase is computed
+locally instead (see `get_moon_phase()` in `wmo_codes.py`).
 
 ### NWS Weather Alerts: api.weather.gov
 **URL:** `https://api.weather.gov/alerts/active?point={lat},{lon}`
@@ -161,11 +159,21 @@ This is the standard Kivy pattern for background work.
 
 ### Background system
 
-Each weather condition maps to a gradient + particle set:
+**v1.2.0 change:** the hero card's background went through three iterations — animated
+gradient widget (v1.0, `WeatherBackground` in `weather_bg.py`) → real photo + dark scrim
+(v1.1, read as too dark on-device) → gradient again (v1.2, this time built directly in
+`WeatherDetailWidget` via `_make_gradient_texture()`, not a separate widget class).
+`weather_bg.py` was deleted as dead code once the photo system fully superseded it; the
+gradient-texture technique itself (1×256 RGB Kivy texture, generated once per build) is
+unchanged from the original approach, just inlined where it's used.
+
+Each weather condition maps to a gradient + particle set. `WeatherOverlay`
+(`weather_overlay.py`) still renders the per-condition particles (sun rays, rain, snow,
+lightning, stars) on top of the gradient, between it and the text layer:
 
 | Condition | Top color | Bottom color | Particles |
 |---|---|---|---|
-| Clear day | `#4FC3F7` | `#0277BD` | Animated sun rays + rays rotation |
+| Clear day | `#B3D4F2` | `#0582BA` | Animated sun rays + rays rotation |
 | Clear night | `#0D1B2A` | `#1A237E` | 40 twinkling stars |
 | Partly cloudy day | `#64B5F6` | `#1565C0` | Sun (partial) + 2 drifting clouds |
 | Partly cloudy night | `#1A237E` | `#263238` | Moon + 10 stars + 1 cloud |
@@ -176,18 +184,30 @@ Each weather condition maps to a gradient + particle set:
 | Snow | `#B3CCE8` | `#78909C` | White cloud + 16 drifting snowflakes |
 | Thunderstorm | `#1A0A2A` | `#0D0D1A` | Dark cloud + rain + lightning flash |
 
-Gradients are rendered as 1×256 RGB Kivy textures, created once on widget init.
-Particles are drawn each frame via `Clock.schedule_interval(1/30)` on the Canvas layer.
+Only `clear` day was relightened in v1.2.0 (explicit user request); other conditions
+keep their original, moodier gradients since they weren't reported as a problem.
 
-### Color palette (UI chrome)
+### Color palette (UI chrome) — two themes, by design
+
+The app intentionally runs **two different text/background pairings** depending on
+section, not one global theme:
+
+| Section | Background | Text |
+|---|---|---|
+| Hero card (city, temp, condition, H/L) | Per-condition gradient (table above) + `rgba(0,0,0,0.42)` scrim + particles | White — `#FFFFFF` at full opacity down to ~35% for tertiary text |
+| Details panel (hourly/daily/grid cards) | `#B3D4F2` flat (the held "light sky blue"), cards layered with `rgba(0,0,0,0.16)` | Dark navy — `rgb(0.07, 0.14, 0.26)` at full opacity down to ~35% for tertiary text |
+
+**Why two themes, not one:** white text needs a background luminance below ~0.18–0.20 for
+WCAG-AA contrast; the light sky blue the user wanted for the details panel sits at ~0.55+
+luminance, which only works with dark text. The hero kept white text because changing it
+wasn't requested and the gradient there still gets darker toward the bottom (where most
+hero text sits), giving it more contrast headroom than a flat light panel would.
 
 | Role | Color |
 |---|---|
-| Card background | `rgba(0, 0, 0, 0.20)` (frosted glass over gradient bg) |
-| Card border | `rgba(255, 255, 255, 0.15)` |
-| Primary text | `#FFFFFF` |
-| Secondary text | `rgba(255, 255, 255, 0.70)` |
-| Accent (rain) | `#93C5FD` |
+| Card border | `rgba(255, 255, 255, 0.15)` (hero) / `rgba(0,0,0, 0.10)` (details panel) |
+| Accent (rain, on dark hero) | `#93C5FD` |
+| Accent (rain, on light details panel) | `rgb(0.05, 0.30, 0.70)` — darkened so it doesn't wash out |
 | Accent (sun) | `#FCD34D` |
 | Bottom nav bar | `rgba(0, 0, 0, 0.35)` |
 
@@ -207,25 +227,29 @@ Particles are drawn each frame via `Clock.schedule_interval(1/30)` on the Canvas
 | Daily day | `sp(18)` | Regular |
 | Daily temp | `sp(18)` | Bold |
 
-### Card inventory (WeatherDetailWidget, scrolling inside blue details card)
+### Card inventory (WeatherDetailWidget, scrolling inside the details panel)
 
 Full-width cards (top of scroll):
 1. **Alert Banner** — amber/red NWS alert rows (shown only when active alerts present)
 2. **Hourly** — horizontal ScrollView; `NOW` + 24h; condition icon + temp per slot; summary header
 3. **10-Day Forecast** — vertical list; day name, icon, precip%, temperature range bar
-4. **Nowcast** — "Next 2 Hours" bar chart at 15-min intervals; bars gray→blue by precipitation amount
-5. **Air Quality** — US AQI value, category, color scale bar, "See More" → detail modal
-6. **Temperature Map** — Windy.com embed via Android WebView dialog; "See More" opens it
+4. **Air Quality** — US AQI value, category, color scale bar, "See More" → detail modal
+5. **Temperature Map** — Windy.com embed via Android WebView dialog; "See More" opens it
 
 2-column grid (below full-width cards):
-7. **UV Index** — numeric value, label, color scale bar, advisory text
-8. **Sunset** — sunset time, arc graphic showing sun position, sunrise time
-9. **Wind** — compass rose with needle, speed, direction label
-10. **Rainfall** — last 24h accumulation, expected next 24h
-11. **Feels Like** — apparent temperature, plain-English reason
-12. **Humidity** — percentage, dew point
-13. **Visibility** — miles, plain-English descriptor
-14. **Pressure** — gauge arc graphic, inHg value, trend (rising/falling/steady)
+6. **UV Index** — numeric value, label, color scale bar, advisory text
+7. **Sunset** — sunset time, arc graphic showing sun position, sunrise time
+8. **Wind** — compass rose with needle, speed, direction label
+9. **Rainfall** — last 24h accumulation, expected next 24h
+10. **Feels Like** — apparent temperature, plain-English reason
+11. **Humidity** — percentage, dew point
+12. **Visibility** — miles, plain-English descriptor
+13. **Pressure** — gauge arc graphic, inHg value, trend (rising/falling/steady)
+
+**Removed in v1.2.0:** Nowcast ("Next 2 Hours" 15-min precipitation bar chart). User
+feedback was that it didn't add useful information over the hourly strip + daily
+precip%; removed UI, model (`NowcastEntry`), and the `minutely_15` API params entirely
+rather than leaving an unused fetch in place.
 
 ### Layout architecture (v1.1.0)
 

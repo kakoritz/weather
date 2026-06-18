@@ -4,15 +4,16 @@ An iOS-faithful Android weather app built with Python + Kivy. Swipe between loca
 see animated weather conditions, and get the full detail set the iPhone Weather app shows —
 with zero paid API plans.
 
-**Current version: v1.0.0**
+**Current version: v1.2.0**
 
 ---
 
 ## What It Does
 
-- **Multi-location carousel** — swipe left/right between any number of saved zip codes
-- **Animated backgrounds** — sun rays, drifting clouds, falling rain, twinkling stars,
-  lightning flashes; all condition-specific and time-of-day aware
+- **Multi-location carousel** — tap the left/right arrows to switch between any number of
+  saved zip codes (swipe is intentionally disabled — see DESIGN.md)
+- **Animated condition overlays** — sun rays, drifting clouds, falling rain, twinkling
+  stars, lightning flashes over a per-condition gradient background; time-of-day aware
 - **Hourly strip** — `NOW` + next 23 hours with condition icon and temperature; scrolls
   horizontally inside the main view
 - **10-day forecast** — day name, condition icon, precipitation probability, temperature
@@ -67,16 +68,16 @@ pytest tests/ -v
 ## App Screens
 
 ### Location list (list icon, bottom-right)
-All saved locations with current temperature and conditions. Tap a location to jump to
-its weather detail. Tap + to add a zip code. Long-press or edit button to remove locations.
+All saved locations with current temperature and conditions. Search bar (city, state, or
+ZIP) is built into this screen — no separate add-location screen. Tap a result in the
+autocomplete dropdown to add it. Swipe a location card to reveal delete. Menu (`⋯`) has
+Edit List, °F/°C toggle, Notifications, Report an Issue.
 
 ### Weather detail (main view)
-Full-screen animated background. Pull down to manually refresh. Swipe left/right to
-navigate between saved locations. Bottom bar shows page dots.
-
-### Add location
-Type a US zip code. City name and state appear as you type (after 5 digits). Tap
-the checkmark to save.
+Hero card (city, temp, condition, H/L) over an animated per-condition gradient, plus a
+scrollable details panel (hourly strip, 10-day forecast, air quality, and the rest of the
+detail cards). Tap the left/right arrows at the top of the hero to switch between saved
+locations — swipe is intentionally disabled. Bottom bar shows page dots.
 
 ---
 
@@ -84,10 +85,10 @@ the checkmark to save.
 
 | Gesture / tap | Result |
 |---|---|
-| Swipe left / right on main view | Switch between saved locations |
+| Left / right arrows on main view | Switch between saved locations |
 | List icon (bottom right) | Open location list |
 | Tap location in list | Jump to that location's weather detail |
-| + button in list | Open add-location screen |
+| Type in list screen's search bar | Look up a city/ZIP, tap a result to add it |
 | Back gesture on Android | Return to weather detail from list |
 
 ---

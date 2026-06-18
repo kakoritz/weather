@@ -11,8 +11,13 @@ Android toolchain, see the parent: `../ANDROID_APP_PLAYBOOK.md` and
 ```bash
 cd /home/kakoritz/NAS/Data/Documents/vscode/WeatherApp
 
-# 1. Build
-~/.buildozer-env/bin/buildozer android debug
+# 1. Build — MUST activate the venv first, not just invoke its buildozer by path.
+#    buildozer only skips its `pip install --user ...` platform-bootstrap step when
+#    $VIRTUAL_ENV is set; invoking ~/.buildozer-env/bin/buildozer directly from a shell
+#    that never activated it leaves $VIRTUAL_ENV unset, and that pip call fails outright
+#    with "Can not perform a '--user' install" (pip refuses --user inside any venv).
+source ~/.buildozer-env/bin/activate
+buildozer android debug
 
 # 2. Install
 adb install -r bin/weatherapp-*.apk
