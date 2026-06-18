@@ -780,8 +780,13 @@ class AlertBanner(BoxLayout):
     """Amber alert rows shown at the top of the details card when NWS alerts are active."""
 
     def __init__(self, alerts: list, **kwargs):
+        # Top padding here, not bottom — AlertBanner can be the first card in the
+        # scroll (when alerts are active), and unlike the other cards it has no
+        # rounded-card internal inset of its own to create breathing room from the
+        # panel edge. Bottom separation from the next card already comes from the
+        # leading dp(12) spacer add_card() inserts before every card but the first.
         super().__init__(orientation='vertical', size_hint=(1, None),
-                         spacing=dp(4), padding=[0, 0, 0, dp(4)], **kwargs)
+                         spacing=dp(4), padding=[0, dp(8), 0, 0], **kwargs)
         self.bind(minimum_height=self.setter('height'))
         from kivymd.uix.button import MDIconButton
 
