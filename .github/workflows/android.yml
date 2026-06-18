@@ -75,30 +75,15 @@ jobs:
           path: build.log
           retention-days: 7
 
-      - name: Delete previous APK release assets
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const releases = await github.rest.repos.listReleases({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-            });
-            const apkRelease = releases.data.find(r => r.tag_name === 'apk-latest');
-            if (apkRelease) {
-              for (const asset of apkRelease.assets) {
-                await github.rest.repos.deleteReleaseAsset({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  asset_id: asset.id,
-                });
-              }
-            }
+      - name: Read app version
+        id: appver
+        run: echo "version=$(grep '^version' buildozer.spec | sed 's/.*=\s*//' | tr -d ' \r')" >> "$GITHUB_OUTPUT"
 
-      - name: Publish APK to GitHub Release (latest only)
+      - name: Publish APK to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: apk-latest
-          name: "Weather — Latest Android APK"
+          tag_name: v${{ steps.appver.outputs.version }}
+          name: "WeatherApp v${{ steps.appver.outputs.version }}"
           body: |
             Built from `${{ github.ref_name }}` · commit `${{ github.sha }}`
 
