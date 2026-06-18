@@ -2,7 +2,7 @@
 title           = Weather
 package.name    = weatherapp
 package.domain  = org.kakoritz
-version         = 1.2.0
+version         = 1.3.0
 
 source.dir      = .
 source.include_exts = py,png,jpg,jpeg,kv,atlas,json,ttf,otf

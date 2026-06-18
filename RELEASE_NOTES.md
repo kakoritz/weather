@@ -2,6 +2,44 @@
 
 ---
 
+## v1.3.0 — One continuous screen: full-page animated sky, frosted-glass cards
+*2026-06-18*
+
+Replaces the v1.2.0 "two-zone" layout (separate hero card + separate solid details
+card) with a single flowing screen that more closely mimics actual iOS Weather: the
+animated condition sky is now the background for the *entire* page, both card
+"frames" are gone, and every stat card (hourly, 10-day, AQ, UV, wind, etc.) is now
+frosted glass — translucent enough to see the sky and particles through it, opaque
+enough to read white text clearly on top.
+
+### Changed
+- **Full-screen animated background.** The gradient texture + particle overlay
+  (sun rays, rain, snow, stars, fog) that used to be confined to the ~240-260dp hero
+  card now span the whole screen. Particle counts in `weather_overlay.py` gained a
+  `density` multiplier (2.2x for full-screen use) so rain/snow/stars don't look
+  sparse stretched across ~9x more area than before.
+- **Hero and details containers are now fully transparent.** No more rounded-rect
+  mask, no more solid background color, no more stencil clipping on either — they're
+  pure layout containers now. The hero's city/temp/condition text and the details
+  ScrollView both float directly on the shared full-screen sky.
+- **All text is white again.** Reverts the v1.2.0 dark-text-on-light-card theme.
+  Card backgrounds flipped from a near-solid dark tint to a translucent
+  blue-black glass (`rgba(0.05,0.08,0.16,0.40)`) with a light frosted-edge border
+  (`rgba(1,1,1,0.22)`) in `detail_cards.py`, `hourly_card.py`, and
+  `daily_forecast.py`. Precip-probability accent color brightened from a dark blue
+  (tuned for light cards) to a bright sky blue (`rgba(0.55,0.80,1.0,1.0)`) so it still
+  pops against the new dark glass.
+- **Subtle full-screen scrim** (0.25 alpha black) added for text legibility over
+  bright daytime gradients — the 'clear' day sky's top color is quite light, and
+  without a scrim the contrast against white text would be poor.
+- Loading and error states now also render on the same animated full-screen sky
+  instead of a flat black/dark placeholder.
+
+### Fixed
+- N/A this release — purely visual.
+
+---
+
 ## v1.2.0 — On-device visual QA pass, menu freeze fix, °F/°C propagation
 *2026-06-17*
 

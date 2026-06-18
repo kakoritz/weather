@@ -5,6 +5,97 @@ If everything scores 10/10, this document is useless.
 
 ---
 
+## v1.3.0 — One continuous screen, frosted glass, planned not improvised
+*2026-06-18*
+
+### Overall rating: 8.0 / 10
+
+**As a weather app:** 8.0/10 — Up from 7.5. This is the closest the app has been to
+the actual iOS Weather reference, not an approximation of it. The two-zone theme
+flagged as a maintenance hazard in the v1.2.0 review is gone — there's only one
+theme now (white text on translucent dark glass over an animated sky), which removes
+an entire class of future "which zone is this card in" bugs by construction rather
+than by convention.
+
+**As a portfolio project:** 8.5/10 — This was the first session in this project where
+a non-trivial UI change went through `EnterPlanMode` before any code was touched, with
+the user explicitly asking for a written plan first. The plan caught a real technical
+risk before implementation (particle density would look anemic stretched across ~9x
+more screen area than the old hero) instead of that being discovered on-device after
+the fact, which is exactly what planning is supposed to prevent and hasn't reliably
+happened in earlier sessions of this project.
+
+---
+
+### What's working well
+
+**The single-theme simplification is a real architectural improvement, not just a
+visual one.** v1.2.0's CLAUDE_REVIEW called out the white-on-dark-hero /
+dark-on-light-details split as "a real ongoing maintenance hazard" with "no
+code-level guard against it." v1.3.0 doesn't add a guard — it removes the need for
+one by deleting the second theme entirely. Every card is now the same glass treatment
+with the same white text. A new card added later has one obvious pattern to copy, not
+two to choose between.
+
+**One ambiguous instruction was caught before it caused rework.** "Hide the border and
+background for the status bar" was genuinely ambiguous — it could have meant the
+Android system status bar (a real, different, bigger task involving window flags) or
+the details container (what was actually meant, confirmed via one targeted question).
+Asking before planning, rather than guessing and finding out wrong after a build/QA
+cycle, is the right call here specifically because the two interpretations have very
+different scope.
+
+**Particle density scaling was planned, not discovered.** Stretching the existing
+`WeatherOverlay` particle counts (tuned for a ~250dp hero) across the full ~2200px
+screen with no change would have looked sparse — this was identified by reading
+`_make_particles`'s fixed counts during planning, not by building first and noticing
+rain looked thin on a screenshot. A `density` parameter was added and a capped
+multiplier (2.2x, not the full ~9x area ratio) chosen up front.
+
+---
+
+### What is genuinely not working well
+
+**The density multiplier (2.2x) and scrim alpha (0.25) are reasoned estimates, not
+measured ones.** Both were chosen from "this seems like it should be enough" logic
+during planning, then confirmed adequate by looking at exactly one condition (Mainly
+Clear, daytime) on one device. Rain/snow/thunderstorm density at the new full-screen
+scale, and scrim adequacy against the *darkest* night gradients (not just the lightest
+day one, which was the stated concern), are unverified. Low risk given the same
+particle/gradient code paths were already exercised at smaller scale, but it's
+verified-by-extension, not verified directly.
+
+**Night-mode contrast was not re-checked this session.** The scrim was sized
+specifically to fix daytime contrast (the 'clear' day gradient's light top color was
+the explicitly named risk). Night gradients are already darker, so the scrim is even
+less likely to be a problem there — but "even less likely" is an inference, not a
+screenshot. First night-time use should get a quick visual check.
+
+**Five-doc update happened in the same pass as the code change, not as a separate
+verification step.** This matches the project's own standing protocol (docs updated
+before every PR), but it means the docs describe the new architecture based on what
+was *implemented*, not on a second look at what actually *shipped* after the fact —
+the same gap that let a "fixed" v1.1.0 bug turn out not to be fixed in v1.2.0 (a
+different bug, same symptom, caught only by a later repro+logcat session). Nothing
+here suggests that happened again, but the review process that would catch it if it
+did is the same one that missed it last time, not a strengthened one.
+
+---
+
+### Long-term concerns (carried forward, still true)
+
+**Kivy on Android is a niche stack.** Unchanged.
+
+**No automated visual regression testing.** Unchanged from v1.2.0's review — every
+contrast/legibility check this session was still a human looking at a screenshot.
+The glass-card alpha values are explicitly called out in DESIGN.md as a likely
+iteration point, same as the dark-on-light theme was last release — a smoke test
+that catches "this card became invisible" or "this card became opaque" classes of
+regression would still be the highest-leverage testing investment available, and
+still doesn't exist.
+
+---
+
 ## v1.2.0 — First real on-device QA pass
 *2026-06-17*
 

@@ -227,7 +227,7 @@ hero text sits), giving it more contrast headroom than a flat light panel would.
 | Daily day | `sp(18)` | Regular |
 | Daily temp | `sp(18)` | Bold |
 
-### Card inventory (WeatherDetailWidget, scrolling inside the details panel)
+### Card inventory (WeatherDetailWidget, scrolling on the full-screen animated sky)
 
 Full-width cards (top of scroll):
 1. **Alert Banner** — amber/red NWS alert rows (shown only when active alerts present)
@@ -251,19 +251,34 @@ feedback was that it didn't add useful information over the hourly strip + daily
 precip%; removed UI, model (`NowcastEntry`), and the `minutely_15` API params entirely
 rather than leaving an unused fetch in place.
 
-### Layout architecture (v1.1.0)
+### Layout architecture (v1.3.0 — one continuous screen)
+
+v1.2.0 used a "two-zone" layout: a separate hero card (its own rounded-rect mask,
+animated background, particles) above a separate solid-color details card. v1.3.0
+removes both card frames entirely so the screen reads as one continuous surface,
+matching actual iOS Weather rather than a segregated-sections approximation of it:
 
 ```
-WeatherDetailWidget (FloatLayout, black background)
-  └── BoxLayout (vertical, padding=[dp(12), dp(12), dp(12), dp(80)])
-       ├── Hero card (FloatLayout, stencil-clip dp(18) radius, animated bg)
-       ├── Widget (spacer dp(8))
-       └── Details card (BoxLayout, blue #1A2947, stencil-clip dp(18) radius)
+WeatherDetailWidget (FloatLayout)
+  canvas.before: full-screen condition gradient texture (_draw_bg)
+  ├── WeatherOverlay (full-screen, density=2.2x — particle counts were tuned
+  │    for the old ~250dp hero, scaled up for full-screen coverage)
+  ├── Scrim (Widget, 0.25 alpha black — keeps white text legible over bright
+  │    daytime gradients without hiding the sky/particles)
+  └── BoxLayout (vertical, padding=[0, dp(8), 0, dp(80)])
+       ├── Hero (FloatLayout, NO canvas — just floating text: city/temp/condition/H:L)
+       └── Details (BoxLayout, NO canvas — pure layout container)
             └── ScrollView
-                 └── All data cards listed above
+                 └── All data cards listed above, each its own frosted-glass card
 ```
 
-The dp(80) bottom padding gives clearance for the dp(52) nav bar + breathing room.
+Every individual stat card (not the outer containers) now carries its own
+translucent glass background — `rgba(0.05, 0.08, 0.16, 0.40)` with a
+`rgba(1, 1, 1, 0.22)` frosted-edge border — so the animated sky and particles are
+visible *through* the cards, not just behind a hero strip. All card text is white
+(reverting the v1.2.0 dark-on-light-card theme, which no longer applies since
+there's no light card to be dark-on-light against). The dp(80) bottom padding still
+gives clearance for the dp(52) nav bar.
 
 ---
 

@@ -30,13 +30,13 @@ KV = """
     spacing: 0
     canvas.before:
         Color:
-            rgba: 0, 0, 0, 0.16
+            rgba: 0.05, 0.09, 0.16, 0.40
         RoundedRectangle:
             pos: self.pos
             size: self.size
             radius: [dp(16)]
         Color:
-            rgba: 0.07, 0.14, 0.26, 0.12
+            rgba: 1, 1, 1, 0.22
         Line:
             rounded_rectangle: [self.x, self.y, self.width, self.height, dp(16)]
             width: 1
@@ -48,7 +48,7 @@ def _card_title(text: str) -> Label:
     lbl = Label(
         text=text.upper(),
         font_size=sp(11),
-        color=(0.07, 0.14, 0.26, 0.55),
+        color=(1, 1, 1, 0.55),
         size_hint_y=None,
         height=dp(16),
         halign='left',
@@ -62,7 +62,7 @@ def _card_title(text: str) -> Label:
 def _card_value(text: str, size=sp(30)) -> Label:
     """Large value label — centered in the body section."""
     lbl = Label(text=text, font_size=size, bold=True,
-                color=(0.07, 0.14, 0.26, 1), halign='center', valign='middle',
+                color=(1, 1, 1, 1), halign='center', valign='middle',
                 size_hint=(1, 1))
     lbl.bind(size=lbl.setter('text_size'))
     return lbl
@@ -71,7 +71,7 @@ def _card_value(text: str, size=sp(30)) -> Label:
 def _card_sub(text: str) -> Label:
     """Footer text — small, bottom-left."""
     lbl = Label(text=text, font_size=sp(12), bold=False,
-                color=(0.07, 0.14, 0.26, 0.65), halign='left', valign='middle',
+                color=(1, 1, 1, 0.65), halign='left', valign='middle',
                 size_hint=(1, None), height=dp(20))
     lbl.bind(size=lbl.setter('text_size'))
     return lbl
@@ -101,18 +101,18 @@ class _BaseCard(BoxLayout):
         hdr = _BL(orientation='horizontal', size_hint=(1, None), height=dp(36),
                   padding=[dp(12), 0, dp(8), 0], spacing=dp(6))
         with hdr.canvas.before:
-            Color(0.07, 0.14, 0.26, 0.07)
+            Color(1, 1, 1, 0.07)
             _hr = Rectangle(pos=hdr.pos, size=hdr.size)
         hdr.bind(pos=lambda w, v, r=_hr: setattr(r, 'pos', v),
                  size=lambda w, v, r=_hr: setattr(r, 'size', v))
 
         from kivymd.uix.button import MDIconButton
         hdr.add_widget(MDIconButton(icon=title_icon, theme_icon_color='Custom',
-                                    icon_color=(0.07, 0.14, 0.26, 0.70), icon_size=dp(20),
+                                    icon_color=(1, 1, 1, 0.70), icon_size=dp(20),
                                     size_hint=(None, 1), width=dp(32)))
         # Header text — 50% larger than before (was sp14 → now sp21)
         hdr_lbl = Label(text=title_text, font_size=sp(21), bold=False,
-                        color=(0.07, 0.14, 0.26, 0.85), size_hint=(1, 1),
+                        color=(1, 1, 1, 0.85), size_hint=(1, 1),
                         halign='left', valign='middle')
         hdr_lbl.bind(size=hdr_lbl.setter('text_size'))
         hdr.add_widget(hdr_lbl)
@@ -136,14 +136,14 @@ class _BaseCard(BoxLayout):
                       height=dp(22), padding=[dp(12), 0])
             if footer_text:
                 fl = Label(text=footer_text, font_size=sp(11), bold=False,
-                           color=(0.07, 0.14, 0.26, 0.55), size_hint=(1, 1),
+                           color=(1, 1, 1, 0.55), size_hint=(1, 1),
                            halign='left', valign='middle')
                 fl.bind(size=fl.setter('text_size'))
                 ftr.add_widget(fl)
             if see_more_fn:
                 ftr.add_widget(Widget(size_hint_x=1))
                 sm = Label(text='See More  ›', font_size=sp(11),
-                           color=(0.07, 0.14, 0.26, 0.55), size_hint=(None, 1),
+                           color=(1, 1, 1, 0.55), size_hint=(None, 1),
                            width=dp(80), halign='right', valign='middle')
                 sm.bind(size=sm.setter('text_size'))
                 ftr.add_widget(sm)
@@ -164,7 +164,7 @@ def _see_more_footer(on_tap):
     """Footer 'See More ›' — only fires on actual taps, not during scroll."""
     from kivy.uix.boxlayout import BoxLayout as _BL
     row = _BL(orientation='horizontal', size_hint_y=None, height=dp(24))
-    lbl = Label(text='See More  ›', font_size=sp(12), color=(0.07, 0.14, 0.26, 0.55),
+    lbl = Label(text='See More  ›', font_size=sp(12), color=(1, 1, 1, 0.55),
                 size_hint=(1, 1), halign='right', valign='middle')
     lbl.bind(size=lbl.setter('text_size'))
     row.add_widget(lbl)
@@ -288,7 +288,7 @@ class AirQualityCard(_BaseCard):
                     color=aq.category_color_rgba, halign='center', valign='middle',
                     size_hint=(None, None), size=(dp(80), dp(52)))
         cat = Label(text=aq.category, font_size=sp(16), bold=False,
-                    color=(0.07, 0.14, 0.26, 0.90), halign='center', valign='middle',
+                    color=(1, 1, 1, 0.90), halign='center', valign='middle',
                     size_hint=(None, None), size=(dp(150), dp(22)))
         bar = _AQIBar(aqi=aq.us_aqi, size_hint=(None, None), size=(dp(130), dp(6)))
         self.build_sections('air-filter', 'Air Quality',
@@ -361,7 +361,7 @@ class _AQIBar(Widget):
 
             # Marker dot
             marker_x = min(self._aqi / 300.0, 1.0) * w
-            Color(0.07, 0.14, 0.26, 1)
+            Color(1, 1, 1, 1)
             r = h * 0.9
             Ellipse(pos=(self.x + marker_x - r, self.y + h/2 - r), size=(r*2, r*2))
 
@@ -374,10 +374,10 @@ class UVIndexCard(_BaseCard):
     def __init__(self, uv: float, **kwargs):
         super().__init__(**kwargs)
         val = Label(text=f'{int(uv)}', font_size=sp(42), bold=True,
-                    color=(0.07, 0.14, 0.26, 1), halign='center', valign='middle',
+                    color=(1, 1, 1, 1), halign='center', valign='middle',
                     size_hint=(None, None), size=(dp(60), dp(52)))
         cat = Label(text=_uv_label(uv), font_size=sp(16), bold=True,
-                    color=(0.07, 0.14, 0.26, 0.90), halign='center', valign='middle',
+                    color=(1, 1, 1, 0.90), halign='center', valign='middle',
                     size_hint=(None, None), size=(dp(100), dp(22)))
         bar = _UVBar(uv=uv, size_hint=(None, None), size=(dp(120), dp(6)))
         self.build_sections('white-balance-sunny', 'UV Index',
@@ -425,7 +425,7 @@ class _UVBar(Widget):
                 )
             # Marker
             mx = min(self._uv / 11.0, 1.0) * w
-            Color(0.07, 0.14, 0.26, 1)
+            Color(1, 1, 1, 1)
             r = h * 0.9
             Ellipse(pos=(self.x + mx - r, self.y + h/2 - r), size=(r*2, r*2))
 
@@ -438,7 +438,7 @@ class SunsetCard(_BaseCard):
     def __init__(self, sunset: str, sunrise: str, progress: float, **kwargs):
         super().__init__(**kwargs)
         val = Label(text=sunset or '—', font_size=sp(32), bold=True,
-                    color=(0.07, 0.14, 0.26, 1), halign='center', valign='middle',
+                    color=(1, 1, 1, 1), halign='center', valign='middle',
                     size_hint=(None, None), size=(dp(140), dp(40)))
         arc = _SunArc(progress=progress, size_hint=(None, None), size=(dp(130), dp(52)))
         self.build_sections('weather-sunset', 'Sunset',
@@ -461,7 +461,7 @@ class _SunArc(Widget):
 
         with self.canvas:
             # Arc path (semicircle)
-            Color(0.07, 0.14, 0.26, 0.25)
+            Color(1, 1, 1, 0.25)
             points = []
             for deg in range(0, 181, 4):
                 rad = math.radians(deg)
@@ -492,7 +492,7 @@ class WindCard(_BaseCard):
         compass = _WindCompass(deg=direction_deg,
                                size_hint=(None, None), size=(dp(90), dp(90)))
         spd = Label(text=f'{speed} mph', font_size=sp(22), bold=True,
-                    color=(0.07, 0.14, 0.26, 1), halign='center', valign='middle',
+                    color=(1, 1, 1, 1), halign='center', valign='middle',
                     size_hint=(None, None), size=(dp(100), dp(28)))
         self.build_sections('weather-windy', 'Wind',
                             [compass, spd], footer_text=f'Direction: {lbl}')
@@ -515,10 +515,10 @@ class _WindCompass(Widget):
 
         with self.canvas:
             # Outer ring
-            Color(0.07, 0.14, 0.26, 0.18)
+            Color(1, 1, 1, 0.18)
             Line(circle=(cx, cy, r), width=1.5)
             # Inner ring
-            Color(0.07, 0.14, 0.26, 0.08)
+            Color(1, 1, 1, 0.08)
             Line(circle=(cx, cy, r * 0.6), width=1)
 
             # Cardinal tick marks
@@ -527,7 +527,7 @@ class _WindCompass(Widget):
                 is_cardinal = (i % 3 == 0)
                 inner = r * (0.78 if is_cardinal else 0.85)
                 outer = r * 0.98
-                Color(0.07, 0.14, 0.26, 0.60 if is_cardinal else 0.25)
+                Color(1, 1, 1, 0.60 if is_cardinal else 0.25)
                 x1 = cx + math.cos(angle) * inner
                 y1 = cy + math.sin(angle) * inner
                 x2 = cx + math.cos(angle) * outer
@@ -558,11 +558,11 @@ class _WindCompass(Widget):
             tail_r = r * 0.30
             tail_x = cx - math.cos(needle_angle) * tail_r
             tail_y = cy - math.sin(needle_angle) * tail_r
-            Color(0.07, 0.14, 0.26, 0.45)
+            Color(1, 1, 1, 0.45)
             Line(points=[cx, cy, tail_x, tail_y], width=1.5)
 
             # Centre dot
-            Color(0.07, 0.14, 0.26, 0.95)
+            Color(1, 1, 1, 0.95)
             Ellipse(pos=(cx - dp(3.5), cy - dp(3.5)), size=(dp(7), dp(7)))
 
 
@@ -574,7 +574,7 @@ class RainfallCard(_BaseCard):
     def __init__(self, last_24h: float, next_24h: float, **kwargs):
         super().__init__(**kwargs)
         val = Label(text=f'{last_24h:.2f}"', font_size=sp(38), bold=True,
-                    color=(0.07, 0.14, 0.26, 1), halign='center', valign='middle',
+                    color=(1, 1, 1, 1), halign='center', valign='middle',
                     size_hint=(None, None), size=(dp(120), dp(50)))
         self.build_sections('weather-rainy', 'Rainfall',
                             [val], footer_text=f'{next_24h:.2f}" expected next 24h')
@@ -588,7 +588,7 @@ class FeelsLikeCard(_BaseCard):
         # so the comparison stays in F — only the displayed value converts.
         reason = feels_like_reason(feels, actual, humidity, wind)
         val = Label(text=fmt_temp(feels, units), font_size=sp(42), bold=True,
-                    color=(0.07, 0.14, 0.26, 1), halign='center', valign='middle',
+                    color=(1, 1, 1, 1), halign='center', valign='middle',
                     size_hint=(None, None), size=(dp(90), dp(52)))
         self.build_sections('thermometer', 'Feels Like', [val], footer_text=reason[:42])
 
@@ -597,7 +597,7 @@ class HumidityCard(_BaseCard):
     def __init__(self, humidity: int, dew_point: int, units: str = 'F', **kwargs):
         super().__init__(**kwargs)
         val = Label(text=f'{humidity}%', font_size=sp(42), bold=True,
-                    color=(0.07, 0.14, 0.26, 1), halign='center', valign='middle',
+                    color=(1, 1, 1, 1), halign='center', valign='middle',
                     size_hint=(None, None), size=(dp(90), dp(52)))
         self.build_sections('water-percent', 'Humidity',
                             [val], footer_text=f'Dew point {fmt_temp(dew_point, units)}')
@@ -607,7 +607,7 @@ class VisibilityCard(_BaseCard):
     def __init__(self, miles: float, **kwargs):
         super().__init__(**kwargs)
         val = Label(text=f'{min(miles, 10):.0f} mi', font_size=sp(38), bold=True,
-                    color=(0.07, 0.14, 0.26, 1), halign='center', valign='middle',
+                    color=(1, 1, 1, 1), halign='center', valign='middle',
                     size_hint=(None, None), size=(dp(110), dp(50)))
         self.build_sections('eye', 'Visibility',
                             [val], footer_text=visibility_description(miles)[:40])
@@ -619,7 +619,7 @@ class PressureCard(_BaseCard):
         inhg = pressure_hpa * 0.02953
         gauge = _PressureGauge(inhg=inhg, size_hint=(None, None), size=(dp(100), dp(80)))
         val = Label(text=f'{inhg:.2f} inHg', font_size=sp(16), bold=True,
-                    color=(0.07, 0.14, 0.26, 0.90), halign='center', valign='middle',
+                    color=(1, 1, 1, 0.90), halign='center', valign='middle',
                     size_hint=(None, None), size=(dp(120), dp(24)))
         self.build_sections('gauge', 'Pressure', [gauge, val], footer_text=trend)
 
@@ -647,7 +647,7 @@ class _PressureGauge(Widget):
 
         with self.canvas:
             # Arc background
-            Color(0.07, 0.14, 0.26, 0.18)
+            Color(1, 1, 1, 0.18)
             for deg in range(200, -21, -4):
                 rad = math.radians(deg)
                 px = cx + math.cos(rad) * r
@@ -662,11 +662,11 @@ class _PressureGauge(Widget):
             rad = math.radians(needle_deg)
             nx = cx + math.cos(rad) * r * 0.8
             ny = cy + math.sin(rad) * r * 0.8
-            Color(0.07, 0.14, 0.26, 0.90)
+            Color(1, 1, 1, 0.90)
             Line(points=[cx, cy, nx, ny], width=2)
 
             # Value text (drawn as label — we'll add outside)
-            Color(0.07, 0.14, 0.26, 0.95)
+            Color(1, 1, 1, 0.95)
             Ellipse(pos=(cx - 4, cy - 4), size=(8, 8))
 
         # Add value label
@@ -676,7 +676,7 @@ class _PressureGauge(Widget):
                 text=f'{self._inhg:.2f}\ninHg',
                 font_size=sp(16),
                 bold=True,
-                color=(0.07, 0.14, 0.26, 0.95),
+                color=(1, 1, 1, 0.95),
                 halign='center',
                 valign='middle',
                 pos=(cx - dp(30) - self.x, cy - dp(14) - self.y),
@@ -712,7 +712,7 @@ class TemperatureMapCard(_BaseCard):
         preview.bind(pos=lambda w, v: None, size=lambda w, v: None)
         preview.add_widget(Label(
             text=f'{city}\n{fmt_temp(temp, units)}',
-            font_size=sp(13), color=(0.07, 0.14, 0.26, 0.70),
+            font_size=sp(13), color=(1, 1, 1, 0.70),
             halign='center', valign='middle', size_hint=(1, 1),
         ))
         preview.bind(on_touch_up=lambda w, t: self._open_map()

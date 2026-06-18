@@ -1,10 +1,11 @@
 # 🌤 WeatherApp
 
-An Android weather app that looks and feels like iOS Weather — floating glass cards,
-animated skies, a 28-phase moon at night, live NWS alerts — built entirely in Python
-with **zero API keys, zero paid plans, zero secrets to manage.**
+An Android weather app that looks and feels like iOS Weather — one continuous animated
+sky behind the entire screen, frosted-glass stat cards floating on top of it, a 28-phase
+moon at night, live NWS alerts — built entirely in Python with **zero API keys, zero
+paid plans, zero secrets to manage.**
 
-**Current version: v1.2.0**
+**Current version: v1.3.0**
 
 ---
 
@@ -13,11 +14,13 @@ with **zero API keys, zero paid plans, zero secrets to manage.**
 Every data source is free and keyless (Open-Meteo, NWS, Nominatim/OSM) — clone the repo,
 run it, no `.env` file, no signup form, no rate-limited trial key expiring in 30 days.
 
-The hero card isn't a static icon over a flat color. Each condition gets its own
-gradient sky plus a live Canvas particle layer: rain falls at a real diagonal, lightning
-actually flashes with timing, clouds drift, sun rays glow. At night, the moon icon
-isn't a generic crescent — it's the *correct* one of 28 real phases for tonight, with
-illumination percentage.
+There's no static icon over a flat color anywhere on the screen. Each condition gets its
+own gradient sky plus a live Canvas particle layer — rain falls at a real diagonal,
+lightning actually flashes with timing, clouds drift, sun rays glow — and that sky is the
+background for the *whole page*, not just a header strip. Every stat card floats on top
+of it as frosted glass: translucent enough that the animated sky shows through, dark
+enough that white text stays sharp. At night, the moon icon isn't a generic crescent —
+it's the *correct* one of 28 real phases for tonight, with illumination percentage.
 
 Air quality, UV, wind, pressure, humidity, visibility, feels-like — every card the iPhone
 Weather app shows is here, and most of them don't just show a number. The feels-like card
@@ -35,9 +38,11 @@ every layout bug, contrast issue, and touch-handling edge case in `CLAUDE_REVIEW
 
 - **Multi-location carousel** — tap the left/right arrows to switch between any number of
   saved zip codes
-- **Animated condition skies** — sun rays, drifting clouds, falling rain, twinkling stars,
-  lightning flashes, all layered Canvas particles over a per-condition gradient; time-of-day
-  aware
+- **One continuous animated sky** — sun rays, drifting clouds, falling rain, twinkling
+  stars, lightning flashes, all layered Canvas particles over a per-condition gradient
+  that spans the *entire* screen, not just a header strip; time-of-day aware
+- **Frosted-glass stat cards** — every card floats translucent on top of the animated
+  sky instead of sitting on a solid background — see the weather move behind the data
 - **28-phase moon** — not 8, not a placeholder crescent — the actual lunar phase tonight
   with illumination %
 - **Live NWS weather alerts** — active watches/warnings/advisories surface as a banner,
@@ -104,11 +109,12 @@ a location card to reveal delete. Menu (`⋯`) has Edit List, °F/°C toggle, No
 Report an Issue.
 
 ### Weather detail (main view)
-Floating hero card — city, temperature, condition, H/L — over an animated, condition-aware
-sky, with the moon at night. Below it, a separate floating details panel holds the hourly
-strip, 10-day forecast, NWS alert banner (when active), and every detail card. Tap the
-left/right arrows at the top of the hero to switch between saved locations. Bottom bar
-shows page dots.
+One continuous screen — no card borders, no separate panels. The animated, condition-aware
+sky (with the moon at night) is the background for the entire view: city, temperature,
+condition, and H/L float directly on it at the top, and the hourly strip, 10-day forecast,
+NWS alert banner (when active), and every stat card scroll underneath as frosted glass,
+the sky and particles visible through all of them. Tap the left/right arrows at the top to
+switch between saved locations. Bottom bar shows page dots.
 
 ---
 
@@ -155,5 +161,5 @@ shows page dots.
 ## Build Status
 
 CI runs on every push to `development` and every PR to `main`.
-APK is built automatically on merge to `main` and published to GitHub Releases
-(`apk-latest` tag — always the most recent build).
+APK is built automatically on merge to `main` and published as a versioned GitHub
+Release (`vX.Y.Z`, read from `buildozer.spec`) — GitHub marks the newest as "Latest".

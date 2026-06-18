@@ -24,13 +24,13 @@ KV = """
     spacing: 0
     canvas.before:
         Color:
-            rgba: 0, 0, 0, 0.16
+            rgba: 0.05, 0.09, 0.16, 0.40
         RoundedRectangle:
             pos: self.pos
             size: self.size
             radius: [dp(16)]
         Color:
-            rgba: 0.07, 0.14, 0.26, 0.12
+            rgba: 1, 1, 1, 0.22
         Line:
             rounded_rectangle: [self.x, self.y, self.width, self.height, dp(16)]
             width: 1
@@ -62,7 +62,7 @@ class _DayRow(BoxLayout):
         day_lbl = Label(
             text=self._day_label,
             font_size=sp(19),
-            color=(0.07, 0.14, 0.26, 0.95),
+            color=(1, 1, 1, 0.95),
             size_hint=(None, 1),
             width=dp(96),
             halign='left',
@@ -75,7 +75,7 @@ class _DayRow(BoxLayout):
         # icons (drizzle/rain) don't wash out against the blue card behind them
         icon_wrap = FloatLayout(size_hint=(None, 1), width=dp(40))
         with icon_wrap.canvas.before:
-            Color(0.07, 0.14, 0.26, 0.07)
+            Color(1, 1, 1, 0.07)
             _glow = Ellipse(pos=(0, 0), size=(dp(38), dp(38)))
 
         def _update_glow(w, v, e=_glow):
@@ -94,7 +94,7 @@ class _DayRow(BoxLayout):
             pp = Label(
                 text=f'{f.precip_prob}%',
                 font_size=sp(14),
-                color=(0.05, 0.30, 0.70, 1.0),
+                color=(0.55, 0.80, 1.0, 1.0),
                 size_hint=(None, 1),
                 width=dp(38),
                 halign='right',
@@ -109,7 +109,7 @@ class _DayRow(BoxLayout):
         min_lbl = Label(
             text=fmt_temp(f.min_temp, self._units),
             font_size=sp(19),
-            color=(0.07, 0.14, 0.26, 0.55),
+            color=(1, 1, 1, 0.55),
             size_hint=(None, 1),
             width=dp(40),
             halign='right',
@@ -136,7 +136,7 @@ class _DayRow(BoxLayout):
             text=fmt_temp(f.max_temp, self._units),
             font_size=sp(19),
             bold=True,
-            color=(0.07, 0.14, 0.26, 0.95),
+            color=(1, 1, 1, 0.95),
             size_hint=(None, 1),
             width=dp(40),
             halign='left',
@@ -167,7 +167,7 @@ class _TempRangeBar(Widget):
 
         # Background track
         with self.canvas:
-            Color(0.07, 0.14, 0.26, 0.18)
+            Color(1, 1, 1, 0.18)
             RoundedRectangle(
                 pos=(self.x, self.center_y - bar_h / 2),
                 size=(w, bar_h),
@@ -202,7 +202,7 @@ class DailyForecastCard(BoxLayout):
         header = Label(
             text='10-DAY FORECAST',
             font_size=sp(11),
-            color=(0.07, 0.14, 0.26, 0.60),
+            color=(1, 1, 1, 0.60),
             size_hint_y=None,
             height=dp(20),
             halign='left',
@@ -214,7 +214,7 @@ class DailyForecastCard(BoxLayout):
         # Separator — keep named reference to avoid canvas.children[-1] pitfall
         sep = Widget(size_hint_y=None, height=dp(1))
         with sep.canvas:
-            Color(0.07, 0.14, 0.26, 0.18)
+            Color(1, 1, 1, 0.18)
             _sep_rect = Rectangle(pos=sep.pos, size=sep.size)
         sep.bind(pos=lambda w, v, r=_sep_rect: setattr(r, 'pos', v))
         sep.bind(size=lambda w, v, r=_sep_rect: setattr(r, 'size', (v[0], 1)))
@@ -239,7 +239,7 @@ class DailyForecastCard(BoxLayout):
             if i < len(forecasts) - 1:
                 divider = Widget(size_hint_y=None, height=dp(1))
                 with divider.canvas:
-                    Color(0.07, 0.14, 0.26, 0.10)
+                    Color(1, 1, 1, 0.10)
                     _div_rect = Rectangle(size=(1, 1))
 
                 def _update_divider(w, v, r=_div_rect):
