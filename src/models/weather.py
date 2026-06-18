@@ -32,13 +32,6 @@ class HourlyEntry:
 
 
 @dataclass
-class NowcastEntry:
-    time: str          # "2025-06-01T14:15"
-    precip: float      # inches of precipitation
-    precip_prob: int   # 0-100%
-
-
-@dataclass
 class DailyForecast:
     date: str          # "2025-06-01"
     max_temp: int
@@ -101,7 +94,6 @@ class WeatherData:
     hourly: list = field(default_factory=list)     # list[HourlyEntry]
     daily: list = field(default_factory=list)      # list[DailyForecast]
     air_quality: Optional[AirQualityData] = None
-    nowcast: list = field(default_factory=list)    # list[NowcastEntry] — 15-min intervals
     alerts: list = field(default_factory=list)     # list[str] — active weather alerts
 
     def to_dict(self) -> dict:
@@ -124,7 +116,6 @@ class WeatherData:
             for df in d.get('daily', [])
         ]
         aq = AirQualityData(**d['air_quality']) if d.get('air_quality') else None
-        nowcast = [NowcastEntry(**n) for n in d.get('nowcast', [])]
         return cls(
             location_zip=d['location_zip'],
             fetched_at=d['fetched_at'],
@@ -132,7 +123,6 @@ class WeatherData:
             hourly=hourly,
             daily=daily,
             air_quality=aq,
-            nowcast=nowcast,
             alerts=d.get('alerts', []),
         )
 

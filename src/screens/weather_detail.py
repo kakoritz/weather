@@ -6,7 +6,8 @@ WeatherCarouselScreen:
   - Handles weather data loading and refresh
 
 WeatherDetailWidget (one per location):
-  - Animated WeatherBackground (fills screen behind scroll)
+  - Hero: gradient background (light top, deeper blue bottom) + WeatherOverlay
+    particles (sun/rain/snow/etc.) + text
   - Vertical ScrollView with all content
   - Hero: city, temp, condition, H/L, summary text
   - HourlyForecastCard
@@ -32,7 +33,8 @@ from kivymd.uix.screen import MDScreen
 from src.api.weather import fetch_weather
 from src.models.location import Location
 from src.models.weather import WeatherData, wind_direction_label
-from src.utils.wmo_codes import get_label, get_condition, get_bg_path, get_icon_path, is_night, get_moon_phase
+from src.utils.wmo_codes import get_label, get_condition, get_icon_path, is_night, get_moon_phase, get_gradients
+from src.utils.units import fmt_temp, to_display
 from src.widgets.weather_overlay import WeatherOverlay, overlay_for_night
 from src.widgets.hourly_card import HourlyForecastCard
 from src.widgets.daily_forecast import DailyForecastCard
@@ -41,6 +43,20 @@ from src.widgets.detail_cards import AlertBanner, DetailCardsGrid
 # Day sky blue — the universal daytime background under all conditions
 _DAY_SKY = (0.22, 0.60, 0.86, 1)
 _NIGHT_SKY = (0.06, 0.10, 0.22, 1)
+
+
+def _make_gradient_texture(top_rgba, bottom_rgba, size=256):
+    """1xN texture interpolating top_rgba (at y=0) down to bottom_rgba (at y=size)."""
+    from kivy.graphics.texture import Texture
+    buf = bytes([
+        int((top_rgba[ch] * (1 - y / size) + bottom_rgba[ch] * (y / size)) * 255)
+        for y in range(size)
+        for ch in range(3)
+    ])
+    tex = Texture.create(size=(1, size), colorfmt='rgb')
+    tex.blit_buffer(buf, bufferfmt='ubyte', colorfmt='rgb')
+    tex.wrap = 'clamp_to_edge'
+    return tex
 
 KV = """
 <WeatherCarouselScreen>:
@@ -58,15 +74,23 @@ class _WeatherCarousel(_KivyCarousel):
 class WeatherDetailWidget(FloatLayout):
     """Single location's full weather detail view (one Carousel slide)."""
 
-    def __init__(self, location: Location, weather: WeatherData | None = None, **kwargs):
+    def __init__(self, location: Location, weather: WeatherData | None = None,
+                 units: str = 'F', **kwargs):
         super().__init__(**kwargs)
         self._location = location
         self._weather = weather
+        self._units = units
         self._scroll: ScrollView | None = None
         self._content: BoxLayout | None = None
         self._bg_rect = None
 
         Clock.schedule_once(self._build, 0)
+
+    def set_units(self, units: str) -> None:
+        """Called when the user toggles °F/°C — re-renders with cached weather data."""
+        self._units = units
+        if self._weather is not None:
+            self.update_weather(self._weather)
 
     def _draw_bg(self):
         """Pure black master background — floating cards sit on top of this."""
@@ -195,7 +219,7 @@ class WeatherDetailWidget(FloatLayout):
             Color(1, 1, 1, 1)
             _dm = RoundedRectangle(pos=details.pos, size=details.size, radius=[RADIUS])
             StencilUse()
-            Color(0.10, 0.16, 0.28, 1)
+            Color(0.70, 0.83, 0.95, 1)
             _dbg = Rectangle(pos=details.pos, size=details.size)
         details.bind(
             pos=lambda w, v, a=_dm, b=_dbg: (setattr(a, 'pos', v), setattr(b, 'pos', v)),
@@ -229,21 +253,20 @@ class WeatherDetailWidget(FloatLayout):
             StencilUnUse()
             StencilPop()
 
-        # Photo background via canvas.before texture (most reliable on Android)
-        import os
-        bg_path = get_bg_path(code, night)
-        abs_bg = os.path.join(os.getcwd(), bg_path)
-        if not os.path.exists(abs_bg):
-            abs_bg = None
-
-        if abs_bg:
-            from kivy.uix.image import Image as _Img
-            bg_img = _Img(source=abs_bg, size_hint=(1, 1), pos_hint={'x': 0, 'y': 0})
-            try:
-                bg_img.fit_mode = 'cover'
-            except Exception:
-                pass
-            hero.add_widget(bg_img)
+        # Gradient background — light blue at top fading to a deeper blue at the
+        # bottom, matching the lightened details card below it. Replaces the old
+        # photo background, which read as too dark regardless of condition.
+        top_rgba, bottom_rgba = get_gradients(code)
+        _grad_tex = _make_gradient_texture(top_rgba, bottom_rgba)
+        _grad_widget = Widget(size_hint=(1, 1), pos_hint={'x': 0, 'y': 0})
+        with _grad_widget.canvas:
+            Color(1, 1, 1, 1)
+            _grad_rect = Rectangle(texture=_grad_tex, pos=_grad_widget.pos, size=_grad_widget.size)
+        _grad_widget.bind(
+            pos=lambda w, v, r=_grad_rect: setattr(r, 'pos', v),
+            size=lambda w, v, r=_grad_rect: setattr(r, 'size', v),
+        )
+        hero.add_widget(_grad_widget)
 
         # Dark overlay (child widget, renders on top of photo, under text)
         _ov = Widget(size_hint=(1, 1), pos_hint={'x': 0, 'y': 0})
@@ -308,7 +331,7 @@ class WeatherDetailWidget(FloatLayout):
                 temp_row.add_widget(moon_big)
                 temp_row.add_widget(Widget(size_hint=(None, 1), width=dp(10)))
             temp_lbl = Label(
-                text=f'{w.current.temp}°',
+                text=fmt_temp(w.current.temp, self._units),
                 font_size=sp(90), bold=False, color=(1, 1, 1, 1),
                 size_hint=(None, 1), width=dp(160),
                 halign='left', valign='middle',
@@ -318,42 +341,74 @@ class WeatherDetailWidget(FloatLayout):
             temp_row.add_widget(Widget(size_hint_x=1))
             text_layer.add_widget(temp_row)
         else:
-            temp_lbl = Label(
-                text=f'{w.current.temp}°',
+            # The degree symbol is excluded from centering — including it in
+            # one string biases the apparent center of the digits to the
+            # left, since "°" adds width only on the right. The number
+            # auto-sizes to its own texture and centers on that alone; the
+            # degree symbol reads back the number's real right edge (after
+            # layout settles) rather than being guessed from texture width,
+            # so it can never end up positioned off in the wrong spot.
+            temp_wrap = FloatLayout(size_hint_y=None, height=dp(108))
+            num_lbl = Label(
+                text=str(to_display(w.current.temp, self._units)),
                 font_size=sp(90), bold=False, color=(1, 1, 1, 1),
-                size_hint_y=None, height=dp(108),
-                halign='center', valign='middle',
+                size_hint=(None, None),
+                pos_hint={'center_x': 0.5, 'center_y': 0.5},
             )
-            temp_lbl.bind(size=temp_lbl.setter('text_size'))
-            text_layer.add_widget(temp_lbl)
+            num_lbl.bind(texture_size=lambda inst, v: setattr(inst, 'size', v))
+            temp_wrap.add_widget(num_lbl)
 
-        # Condition: icon + label on ONE line, full width, centered, no wrapping
-        cond_row = BoxLayout(orientation='horizontal', size_hint_y=None,
-                             height=dp(36), spacing=dp(6))
-        cond_row.add_widget(Widget(size_hint_x=1))
-        icon_img = KivyImage(
-            source=get_icon_path(code, night),
-            size_hint=(None, None), size=(dp(30), dp(30)),
-        )
-        cond_row.add_widget(icon_img)
+            deg_lbl = Label(
+                text='°', font_size=sp(90), bold=False, color=(1, 1, 1, 1),
+                size_hint=(None, None),
+            )
+            deg_lbl.bind(texture_size=lambda inst, v: setattr(inst, 'size', v))
+            temp_wrap.add_widget(deg_lbl)
+
+            def _position_deg(*_):
+                deg_lbl.pos = (num_lbl.right + dp(2), num_lbl.y)
+            num_lbl.bind(pos=_position_deg, size=_position_deg)
+            deg_lbl.bind(size=_position_deg)
+            Clock.schedule_once(_position_deg, 0)
+
+            text_layer.add_widget(temp_wrap)
+
+        # Condition label — auto-sized to its own rendered text and centered
+        # on that (matches the H/L line below it). The icon reads back the
+        # label's real left edge (cond_lbl.x) once Kivy has actually laid it
+        # out, rather than guessing the text width ourselves — guessing was
+        # the bug: the fallback estimate was way too wide, so the icon flew
+        # off to the left. This way the icon can only ever sit exactly where
+        # the first character starts, because that IS cond_lbl.x.
+        cond_row = FloatLayout(size_hint_y=None, height=dp(36))
         cond_lbl = Label(
             text=get_label(code),
             font_size=sp(20),
             bold=False,
             color=(1, 1, 1, 0.95),
-            size_hint=(None, 1),
-            width=dp(220),   # fixed wide enough for longest label, never wraps
-            halign='left',
-            valign='middle',
+            size_hint=(None, None),
+            pos_hint={'center_x': 0.5, 'center_y': 0.5},
         )
-        # Do NOT bind text_size — use fixed width so it never wraps
+        cond_lbl.bind(texture_size=lambda inst, v: setattr(inst, 'size', v))
         cond_row.add_widget(cond_lbl)
-        cond_row.add_widget(Widget(size_hint_x=1))
+        icon_img = KivyImage(
+            source=get_icon_path(code, night),
+            size_hint=(None, None), size=(dp(24), dp(24)),
+        )
+        cond_row.add_widget(icon_img)
+
+        def _position_cond_icon(*_):
+            icon_img.pos = (
+                cond_lbl.x - icon_img.width - dp(6),
+                cond_lbl.center_y - icon_img.height / 2,
+            )
+        cond_lbl.bind(pos=_position_cond_icon, size=_position_cond_icon)
+        Clock.schedule_once(_position_cond_icon, 0)
         text_layer.add_widget(cond_row)
 
         if today:
             hl_lbl = Label(
-                text=f'H:{today.max_temp}°   L:{today.min_temp}°',
+                text=f'H:{fmt_temp(today.max_temp, self._units)}   L:{fmt_temp(today.min_temp, self._units)}',
                 font_size=sp(17),
                 color=(1, 1, 1, 0.85),
                 size_hint_y=None,
@@ -387,7 +442,7 @@ class WeatherDetailWidget(FloatLayout):
             Color(1, 1, 1, 1)
             _det_mask = RoundedRectangle(pos=details.pos, size=details.size, radius=[RADIUS])
             StencilUse()
-            Color(0.10, 0.16, 0.28, 1)   # deep blue
+            Color(0.70, 0.83, 0.95, 1)   # lighter iOS-style blue
             _det_bg = Rectangle(pos=details.pos, size=details.size)
         details.bind(
             pos=lambda w, v, a=_det_mask, b=_det_bg: (setattr(a, 'pos', v), setattr(b, 'pos', v)),
@@ -402,11 +457,12 @@ class WeatherDetailWidget(FloatLayout):
         self._scroll = ScrollView(do_scroll_y=True, do_scroll_x=False,
                                   bar_width=0, size_hint=(1, 1), effect_cls='ScrollEffect')
         self._content = BoxLayout(orientation='vertical', size_hint_y=None,
-                                  padding=[0, dp(4), 0, dp(20)], spacing=0)
+                                  padding=[0, 0, 0, dp(20)], spacing=0)
         self._content.bind(minimum_height=self._content.setter('height'))
 
         def add_card(widget, h=None):
-            self._content.add_widget(Widget(size_hint_y=None, height=dp(12)))
+            if self._content.children:   # skip the leading gap before the first card
+                self._content.add_widget(Widget(size_hint_y=None, height=dp(12)))
             if h:
                 padded = BoxLayout(size_hint_y=None, height=h, padding=[dp(14), 0])
             else:
@@ -426,17 +482,18 @@ class WeatherDetailWidget(FloatLayout):
             add_card(HourlyForecastCard(
                 entries=next_hours, first_is_now=True,
                 summary=self._build_summary_text(w),
+                units=self._units,
             ), h=dp(210))
 
         # ── 10-day forecast ───────────────────────────
         if w.daily:
-            add_card(DailyForecastCard(forecasts=w.daily))
+            add_card(DailyForecastCard(forecasts=w.daily, units=self._units))
 
         # ── Detail cards grid ─────────────────────────
-        add_card(DetailCardsGrid(data=w))
+        add_card(DetailCardsGrid(data=w, units=self._units))
 
         attrib = Label(text='Data provided by Open-Meteo API · openstreetmap.org',
-                       font_size=sp(10), color=(1, 1, 1, 0.35),
+                       font_size=sp(10), color=(0.07, 0.14, 0.26, 0.45),
                        size_hint_y=None, height=dp(18),
                        halign='center', valign='middle')
         attrib.bind(size=attrib.setter('text_size'))
@@ -604,12 +661,21 @@ class WeatherCarouselScreen(MDScreen):
         super().__init__(**kwargs)
         self._locations = list(locations)
         self._storage = storage
+        self._units = storage.get_units() if storage else 'F'
         self._weather_map: dict = {}
         self._detail_widgets: list = []
         self._carousel: Carousel | None = None
         self._nav_bar: _BottomNavBar | None = None
         self._build_ui()
         self._load_all_weather()
+
+    def on_pre_enter(self, *_):
+        """Pick up a °F/°C change made on the list screen's menu."""
+        new_units = self._storage.get_units() if self._storage else 'F'
+        if new_units != self._units:
+            self._units = new_units
+            for w in self._detail_widgets:
+                w.set_units(new_units)
 
     def _build_ui(self):
         root = FloatLayout(size_hint=(1, 1))
@@ -623,7 +689,7 @@ class WeatherCarouselScreen(MDScreen):
 
         for loc in self._locations:
             cached = self._storage.get_cached_weather(loc.zip)
-            widget = WeatherDetailWidget(location=loc, weather=cached)
+            widget = WeatherDetailWidget(location=loc, weather=cached, units=self._units)
             self._detail_widgets.append(widget)
             self._carousel.add_widget(widget)
 
@@ -763,7 +829,7 @@ class WeatherCarouselScreen(MDScreen):
         """Add a new location slide and start loading its weather."""
         self._locations.append(location)
         cached = self._storage.get_cached_weather(location.zip)
-        widget = WeatherDetailWidget(location=location, weather=cached)
+        widget = WeatherDetailWidget(location=location, weather=cached, units=self._units)
         self._detail_widgets.append(widget)
         self._carousel.add_widget(widget)
         self._nav_bar.set_num_pages(len(self._locations))

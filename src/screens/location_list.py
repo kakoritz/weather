@@ -31,6 +31,7 @@ from kivymd.uix.screen import MDScreen
 from src.models.location import Location
 from src.models.weather import WeatherData
 from src.utils.wmo_codes import get_label, get_bg_path, is_night
+from src.utils.units import fmt_temp as _c_or_f
 
 _DEL_W = dp(80)
 _CARD_H = dp(110)
@@ -47,12 +48,6 @@ KV = """
             size: self.size
 """
 Builder.load_string(KV)
-
-
-def _c_or_f(fahrenheit: int, units: str) -> str:
-    if units == 'C':
-        return f'{round((fahrenheit - 32) * 5 / 9)}°'
-    return f'{fahrenheit}°'
 
 
 # ── City search ───────────────────────────────────────────────────────────────
@@ -573,11 +568,17 @@ class LocationListScreen(MDScreen):
     def _open_menu(self, *_):
         if self._menu_open:
             return
+        # Set the guard immediately, not inside the deferred call below — a
+        # fast double-tap can pass this check twice in the one-frame gap
+        # before _do_open_menu runs, creating two _DropdownMenu instances.
+        # Each adds its own always-touch-consuming _MenuDim to Window, and
+        # only the most recent one ever gets cleaned up, leaving the other
+        # permanently swallowing every touch on screen (looks like a freeze).
+        self._menu_open = True
         # Delay one frame so button layout is guaranteed complete before to_window()
         Clock.schedule_once(self._do_open_menu, 0)
 
     def _do_open_menu(self, dt):
-        self._menu_open = True
         from kivy.core.window import Window, Logger
 
         units = self._storage.get_units() if self._storage else 'F'
@@ -613,6 +614,13 @@ class LocationListScreen(MDScreen):
         if hasattr(self, '_menu_widget') and self._menu_widget:
             self._menu_widget.remove()
             self._menu_widget = None
+        # Defensive: clean up any stray _MenuDim/menu card left on the Window
+        # from a previous double-fire (see _open_menu) so a touch-eating
+        # leftover layer can never survive past this point.
+        from kivy.core.window import Window
+        for w in list(Window.children):
+            if isinstance(w, _MenuDim) or w is getattr(self, '_menu_widget', None):
+                Window.remove_widget(w)
         new_units = self._storage.get_units() if self._storage else 'F'
         if new_units != self._units:
             self._units = new_units

@@ -7,7 +7,7 @@ import requests
 
 from src.models.weather import (
     AirQualityData, CurrentConditions, DailyForecast,
-    HourlyEntry, NowcastEntry, WeatherData,
+    HourlyEntry, WeatherData,
 )
 
 _FORECAST_URL = 'https://api.open-meteo.com/v1/forecast'
@@ -35,8 +35,6 @@ def _build_forecast_params(lat: float, lon: float) -> dict:
             'precipitation_sum,precipitation_probability_max,'
             'wind_speed_10m_max,uv_index_max,sunrise,sunset'
         ),
-        'minutely_15': 'precipitation',
-        'forecast_minutely_15': 16,   # 4 hours at 15-min intervals
         'temperature_unit': 'fahrenheit',
         'windspeed_unit': 'mph',
         'precipitation_unit': 'inch',
@@ -96,35 +94,12 @@ def _parse_forecast(json: dict, zip_code: str) -> WeatherData:
         for i in range(n_days)
     ]
 
-    # 15-min precipitation nowcast (probability derived from amount)
-    nowcast = []
-    m15 = json.get('minutely_15', {})
-    if m15 and 'time' in m15:
-        for i in range(min(16, len(m15['time']))):
-            amt = m15['precipitation'][i] or 0.0
-            # Map precipitation amount to a display probability (0–100 scale)
-            # 0 in → 0%, 0.04 in → ~50%, 0.10 in → ~85%, 0.20+ in → 100%
-            if amt <= 0:
-                prob = 0
-            elif amt < 0.04:
-                prob = int(amt / 0.04 * 50)
-            elif amt < 0.10:
-                prob = int(50 + (amt - 0.04) / 0.06 * 35)
-            else:
-                prob = min(100, int(85 + (amt - 0.10) * 150))
-            nowcast.append(NowcastEntry(
-                time=m15['time'][i],
-                precip=amt,
-                precip_prob=prob,
-            ))
-
     return WeatherData(
         location_zip=zip_code,
         fetched_at=datetime.now().isoformat(),
         current=current,
         hourly=hourly,
         daily=daily,
-        nowcast=nowcast,
     )
 
 
