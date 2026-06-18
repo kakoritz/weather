@@ -5,7 +5,85 @@ If everything scores 10/10, this document is useless.
 
 ---
 
-## v1.0.0 — Initial scaffold and full feature implementation
+## v1.2.0 — First real on-device QA pass
+*2026-06-17*
+
+### Overall rating: 7.5 / 10
+
+**As a weather app:** 7.5/10 — Up from 7.0. The product is more honest now: a feature
+that didn't earn its place (Nowcast) was removed instead of left to rot, two real
+functional bugs (menu freeze, °F/°C not propagating) are fixed, and the visual design
+went through actual iteration against a real screen instead of guessing once and moving
+on. Still missing the high-expectation features called out in FEATURES.md (pull-to-
+refresh, haptics, GPS location, widgets, notifications).
+
+**As a portfolio project:** 8.0/10 — Down slightly from 8.5, and that's a good thing: the
+v1.0.0 review's 8.5 was partly inflated by *not yet knowing* about the gradient-texture
+risk, the device-testing gap, and the menu bug. This release is what happens when those
+unknowns get resolved — some turned out fine, one (the menu) was a real, user-impacting
+bug that had shipped twice already (v1.1.0's RELEASE_NOTES claimed it was fixed; it
+wasn't — a different bug in the same area).
+
+---
+
+### What's working well (confirmed this release, not assumed)
+
+**The gradient-texture background concern from the v1.0.0 review is resolved.** It
+renders correctly on real Android hardware (Pixel 5a, Adreno 620, OpenGL ES 3.2) with no
+artifacts. This had been flagged as "unproven on Android" for two releases; it's proven now.
+
+**On-device iteration loop works end-to-end.** build → install → screenshot/logcat →
+diagnose → fix → rebuild was exercised ~10 times in one session without the toolchain
+itself being the bottleneck (one environment hiccup: `buildozer` needs the venv actually
+*activated*, not just invoked by absolute path, or its own `--user` pip install guard
+breaks — documented in DEPLOYMENT.md-adjacent context now).
+
+**Willingness to remove, not just add.** Nowcast, `weather_bg.py`, and `_DayIcon` all got
+deleted this release instead of accumulating as unused surface area. That's the right
+instinct and should continue.
+
+---
+
+### What is genuinely not working well
+
+**A "fixed" bug from v1.1.0 was not actually fixed.** RELEASE_NOTES v1.1.0 claims the menu
+click-through issue was resolved via the `_MenuDim` touch-consumption fix. It was — but a
+*different* bug (a guard-flag race enabling double-instantiation) was already present and
+caused a worse symptom (full freeze) that nobody caught before this release. Lesson: a
+fix for one failure mode in a touch-handling area doesn't mean the area is safe; it
+needed an actual repro+logcat session to find, not code review.
+
+**Visual/contrast decisions took many iterations to converge.** The background color went
+through roughly four passes before landing (dark → medium blue → light blue-with-white-
+text → light-blue-with-dark-text). Each iteration was reasoned through correctly given
+the information available at the time, but the actual constraint (white text has a hard
+luminance ceiling) should have been surfaced and decided on *before* the first repaint,
+not discovered through trial and error against a live device.
+
+**Two different text/background themes in one screen is a maintenance hazard.** The hero
+stays white-on-dark, the details panel is now dark-on-light. Any future card that's added
+without checking which "zone" it lives in risks invisible text. This is documented in
+DESIGN.md now, but there's no code-level guard against it (e.g., a shared color constant
+per zone that a new card would naturally reach for).
+
+**Still no automated visual regression testing.** Every contrast/centering bug this
+release was caught by a human looking at a screenshot, not by a test. For a Kivy app this
+is hard to do well, but even a smoke test that renders each screen to a texture and
+asserts non-trivial pixel variance (catching "rendered nothing" / "rendered all one
+color" classes of bugs) would have caught the FloatLayout `pos_hint` bug before a human had to.
+
+---
+
+### Long-term concerns (carried forward from v1.0.0, still true)
+
+**Kivy on Android is a niche stack.** Unchanged assessment — still true, still a known
+tradeoff, not new information this release.
+
+**The iOS design may get further from target over time.** Unchanged. Apple updates
+Weather app visuals annually; this app is now also diverging *intentionally* in places
+(the light-card/dark-text treatment isn't pure iOS mimicry, it's a contrast-driven
+compromise) — worth deciding explicitly whether 1:1 iOS fidelity is still the goal or
+whether "iOS-inspired, contrast-correct" is the actual target going forward.
 *2026-06-01*
 
 ### Overall rating: 7.0 / 10

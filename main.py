@@ -1,7 +1,7 @@
 """WeatherApp — iOS-faithful Android weather app.
 Built with Python / Kivy 2.3.0 / KivyMD 1.2.0.
 """
-__version__ = '1.0.0'
+__version__ = '1.2.0'
 
 import os
 import sys
@@ -79,23 +79,14 @@ class WeatherApp(MDApp):
         self.sm = ScreenManager(transition=NoTransition())
 
         locations = self.storage.load_locations()
-
-        if not locations:
-            # No saved locations — go straight to add screen (no cancel button)
-            add_screen = AddLocationScreen(
-                name='add_location',
-                on_location_added=self._on_first_location_added,
-                on_cancel=None,
-            )
-            self.sm.add_widget(add_screen)
-            self.sm.current = 'add_location'
-        else:
-            self._build_main_screens(locations)
+        # Always build main screens — LocationListScreen has a search bar
+        # built in, so there is no separate AddLocationScreen needed.
+        self._build_main_screens(locations)
 
         return self.sm
 
     def _build_main_screens(self, locations: list):
-        """Build the carousel + list screens with the given locations."""
+        """Build carousel + list screens. If no locations, land on list (search bar)."""
         carousel_screen = WeatherCarouselScreen(
             name='weather_carousel',
             locations=locations,
@@ -108,20 +99,15 @@ class WeatherApp(MDApp):
             locations=locations,
             weather_map=carousel_screen.weather_map,
             on_tap=self._on_list_tap,
-            on_add=self._on_add_requested,
+            on_add=self._on_search_add,
             on_delete=self._on_delete_location,
+            storage=self.storage,
         )
         self.sm.add_widget(list_screen)
 
-        # Add location screen (accessible from list — has cancel button)
-        add_screen = AddLocationScreen(
-            name='add_location',
-            on_location_added=self._on_location_added,
-            on_cancel=lambda: setattr(self.sm, 'current', 'weather_carousel'),
-        )
-        self.sm.add_widget(add_screen)
-
-        self.sm.current = 'weather_carousel'
+        # No locations → drop straight into the list so user sees the search bar.
+        # Has locations → show the weather carousel immediately.
+        self.sm.current = 'location_list' if not locations else 'weather_carousel'
 
     def _on_first_location_added(self, location: Location):
         """Called from AddLocationScreen when the very first location is saved."""
@@ -152,26 +138,31 @@ class WeatherApp(MDApp):
     def _on_add_requested(self):
         self.sm.current = 'add_location'
 
+    def _on_search_add(self, location: Location):
+        """Called when user picks a city from the location list search bar.
+        Adds the location and STAYS on the list — user may want to add more.
+        """
+        self.storage.add_location(location)
+        if self.sm.has_screen('weather_carousel'):
+            carousel = self.sm.get_screen('weather_carousel')
+            carousel.add_location(location)
+        else:
+            # First location — build main screens
+            locations = self.storage.load_locations()
+            self._build_main_screens(locations)
+            return
+        self._rebuild_list_screen()
+        # Stay on location_list (do NOT navigate to weather_carousel)
+
     def _on_delete_location(self, zip_code: str):
         self.storage.remove_location(zip_code)
         carousel = self.sm.get_screen('weather_carousel')
         carousel.remove_location(zip_code)
         self._rebuild_list_screen()
 
-        # If no locations remain, go back to add screen
+        # If no locations remain, stay on location_list (shows empty + search bar)
         if not self.storage.load_locations():
-            self.sm.remove_widget(self.sm.get_screen('weather_carousel'))
-            if self.sm.has_screen('location_list'):
-                self.sm.remove_widget(self.sm.get_screen('location_list'))
-            if self.sm.has_screen('add_location'):
-                self.sm.remove_widget(self.sm.get_screen('add_location'))
-
-            add_screen = AddLocationScreen(
-                name='add_location',
-                on_location_added=self._on_first_location_added,
-            )
-            self.sm.add_widget(add_screen)
-            self.sm.current = 'add_location'
+            self.sm.current = 'location_list'
 
     def _rebuild_list_screen(self):
         carousel = self.sm.get_screen('weather_carousel')
@@ -182,8 +173,9 @@ class WeatherApp(MDApp):
             locations=carousel.locations,
             weather_map=carousel.weather_map,
             on_tap=self._on_list_tap,
-            on_add=self._on_add_requested,
+            on_add=self._on_search_add,
             on_delete=self._on_delete_location,
+            storage=self.storage,
         )
         self.sm.add_widget(list_screen)
 

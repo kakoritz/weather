@@ -43,6 +43,8 @@ class DailyForecast:
     sunrise: str       # "2025-06-01T06:15"
     sunset: str        # "2025-06-01T20:40"
     code: int
+    moonrise: str = '' # "2025-06-01T20:24" or empty
+    moonset: str = ''  # "2025-06-01T06:12" or empty
 
 
 @dataclass
@@ -92,6 +94,7 @@ class WeatherData:
     hourly: list = field(default_factory=list)     # list[HourlyEntry]
     daily: list = field(default_factory=list)      # list[DailyForecast]
     air_quality: Optional[AirQualityData] = None
+    alerts: list = field(default_factory=list)     # list[str] — active weather alerts
 
     def to_dict(self) -> dict:
         import dataclasses
@@ -101,7 +104,17 @@ class WeatherData:
     def from_dict(cls, d: dict) -> 'WeatherData':
         current = CurrentConditions(**d['current'])
         hourly = [HourlyEntry(**h) for h in d.get('hourly', [])]
-        daily = [DailyForecast(**df) for df in d.get('daily', [])]
+        # Explicit construction handles old cache that lacks moonrise/moonset
+        daily = [
+            DailyForecast(
+                date=df['date'], max_temp=df['max_temp'], min_temp=df['min_temp'],
+                precip_sum=df['precip_sum'], precip_prob=df['precip_prob'],
+                wind_max=df['wind_max'], uv_max=df['uv_max'],
+                sunrise=df['sunrise'], sunset=df['sunset'], code=df['code'],
+                moonrise=df.get('moonrise', ''), moonset=df.get('moonset', ''),
+            )
+            for df in d.get('daily', [])
+        ]
         aq = AirQualityData(**d['air_quality']) if d.get('air_quality') else None
         return cls(
             location_zip=d['location_zip'],
@@ -110,6 +123,7 @@ class WeatherData:
             hourly=hourly,
             daily=daily,
             air_quality=aq,
+            alerts=d.get('alerts', []),
         )
 
     def today_hourly(self) -> list:
@@ -122,13 +136,14 @@ class WeatherData:
     def next_24_hours(self) -> list:
         """Return 24 hourly entries starting from the current hour.
 
-        Always starts at NOW regardless of time of day. If it's 11 PM,
-        entries roll into the next day. The first entry is always 'now'.
+        NOW threshold: if >= 55 min past the hour (xx:55+), advance to
+        the next hour so NOW flips cleanly 5 minutes before the hour turns.
         """
         from datetime import datetime
         now = datetime.now()
-        # Build a string like '2025-06-01T23:00' to match against hourly times
-        current_slot = now.strftime('%Y-%m-%dT%H:00')
+        # Advance to next hour if within 5 min of the turn
+        hour = now.hour if now.minute < 55 else min(now.hour + 1, 23)
+        current_slot = now.strftime(f'%Y-%m-%dT{hour:02d}:00')
         start_idx = None
         for i, h in enumerate(self.hourly):
             if h.time >= current_slot:

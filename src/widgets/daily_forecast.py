@@ -1,11 +1,11 @@
 """10-day forecast card widget."""
-import math
 from datetime import datetime
 
-from kivy.graphics import Color, Ellipse, Line, Rectangle, RoundedRectangle
+from kivy.graphics import Color, Ellipse, Rectangle, RoundedRectangle
 from kivy.lang import Builder
 from kivy.metrics import dp, sp
 from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.label import Label
 from kivy.uix.widget import Widget
 from kivy.clock import Clock
@@ -14,6 +14,7 @@ from kivy.uix.image import Image
 
 from src.models.weather import DailyForecast
 from src.utils.wmo_codes import get_icon_path
+from src.utils.units import fmt_temp
 
 KV = """
 <DailyForecastCard>:
@@ -23,31 +24,35 @@ KV = """
     spacing: 0
     canvas.before:
         Color:
-            rgba: 0, 0, 0, 0.22
+            rgba: 0, 0, 0, 0.16
         RoundedRectangle:
             pos: self.pos
             size: self.size
             radius: [dp(16)]
         Color:
-            rgba: 1, 1, 1, 0.12
+            rgba: 0.07, 0.14, 0.26, 0.12
         Line:
             rounded_rectangle: [self.x, self.y, self.width, self.height, dp(16)]
             width: 1
 """
 Builder.load_string(KV)
 
-DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+# Python weekday() returns 0=Mon..6=Sun — must match that order
+DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
 
 class _DayRow(BoxLayout):
     def __init__(self, forecast: DailyForecast, day_label: str,
-                 global_min: int, global_max: int, **kwargs):
+                 global_min: int, global_max: int, units: str = 'F', **kwargs):
         super().__init__(orientation='horizontal', size_hint_y=None,
                          height=dp(46), **kwargs)
         self._forecast = forecast
         self._day_label = day_label
+        # Bar math stays in Fahrenheit — (x-min)/(max-min) is invariant under
+        # the affine F->C conversion, so only the display strings need it.
         self._global_min = global_min
         self._global_max = global_max
+        self._units = units
         Clock.schedule_once(self._build, 0)
 
     def _build(self, *_):
@@ -56,8 +61,8 @@ class _DayRow(BoxLayout):
         # Day name
         day_lbl = Label(
             text=self._day_label,
-            font_size=sp(17),
-            color=(1, 1, 1, 0.95),
+            font_size=sp(19),
+            color=(0.07, 0.14, 0.26, 0.95),
             size_hint=(None, 1),
             width=dp(96),
             halign='left',
@@ -66,19 +71,30 @@ class _DayRow(BoxLayout):
         day_lbl.bind(size=day_lbl.setter('text_size'))
         self.add_widget(day_lbl)
 
-        # Condition icon — official OWM PNG
+        # Condition icon — official OWM PNG on a soft glow plate so pale
+        # icons (drizzle/rain) don't wash out against the blue card behind them
+        icon_wrap = FloatLayout(size_hint=(None, 1), width=dp(40))
+        with icon_wrap.canvas.before:
+            Color(0.07, 0.14, 0.26, 0.07)
+            _glow = Ellipse(pos=(0, 0), size=(dp(38), dp(38)))
+
+        def _update_glow(w, v, e=_glow):
+            e.pos = (w.center_x - dp(19), w.center_y - dp(19))
+        icon_wrap.bind(pos=_update_glow, size=_update_glow)
         icon = Image(
             source=get_icon_path(f.code, night=False),
-            size_hint=(None, 1), width=dp(36),
+            size_hint=(None, None), size=(dp(38), dp(38)),
+            pos_hint={'center_x': 0.5, 'center_y': 0.5},
         )
-        self.add_widget(icon)
+        icon_wrap.add_widget(icon)
+        self.add_widget(icon_wrap)
 
         # Precip probability (0 shown as blank)
         if f.precip_prob > 0:
             pp = Label(
                 text=f'{f.precip_prob}%',
-                font_size=sp(12),
-                color=(0.58, 0.78, 0.99, 1.0),
+                font_size=sp(14),
+                color=(0.05, 0.30, 0.70, 1.0),
                 size_hint=(None, 1),
                 width=dp(38),
                 halign='right',
@@ -91,9 +107,9 @@ class _DayRow(BoxLayout):
 
         # Min temp
         min_lbl = Label(
-            text=f'{f.min_temp}°',
-            font_size=sp(17),
-            color=(1, 1, 1, 0.55),
+            text=fmt_temp(f.min_temp, self._units),
+            font_size=sp(19),
+            color=(0.07, 0.14, 0.26, 0.55),
             size_hint=(None, 1),
             width=dp(40),
             halign='right',
@@ -117,10 +133,10 @@ class _DayRow(BoxLayout):
 
         # Max temp
         max_lbl = Label(
-            text=f'{f.max_temp}°',
-            font_size=sp(17),
+            text=fmt_temp(f.max_temp, self._units),
+            font_size=sp(19),
             bold=True,
-            color=(1, 1, 1, 0.95),
+            color=(0.07, 0.14, 0.26, 0.95),
             size_hint=(None, 1),
             width=dp(40),
             halign='left',
@@ -151,7 +167,7 @@ class _TempRangeBar(Widget):
 
         # Background track
         with self.canvas:
-            Color(1, 1, 1, 0.18)
+            Color(0.07, 0.14, 0.26, 0.18)
             RoundedRectangle(
                 pos=(self.x, self.center_y - bar_h / 2),
                 size=(w, bar_h),
@@ -169,65 +185,12 @@ class _TempRangeBar(Widget):
             )
 
 
-class _DayIcon(Widget):
-    def __init__(self, wmo_code: int, **kwargs):
-        super().__init__(**kwargs)
-        self._code = wmo_code
-        self.bind(pos=self._redraw, size=self._redraw)
-
-    def _redraw(self, *_):
-        self.canvas.clear()
-        w, h = self.width, self.height
-        if w < 1:
-            return
-        cond = get_condition(self._code)
-        cx, cy = self.x + w/2, self.y + h/2
-
-        with self.canvas:
-            if cond == 'clear':
-                Color(0.98, 0.85, 0.20, 1.0)
-                r = min(w, h) * 0.32
-                Ellipse(pos=(cx-r, cy-r), size=(r*2, r*2))
-            elif cond == 'partly_cloudy':
-                Color(0.98, 0.85, 0.20, 0.9)
-                r = min(w, h) * 0.22
-                Ellipse(pos=(cx-r+3, cy+2), size=(r*2, r*2))
-                Color(0.90, 0.93, 0.96, 0.92)
-                self._cloud(cx - 2, cy - 4, 0.55)
-            elif cond in ('overcast', 'fog'):
-                Color(0.55, 0.62, 0.67, 0.92)
-                self._cloud(cx, cy, 0.75)
-            elif cond in ('drizzle', 'rain', 'heavy_rain'):
-                Color(0.38, 0.47, 0.55, 0.92)
-                self._cloud(cx, cy + 4, 0.72)
-                Color(0.55, 0.75, 0.98, 0.85)
-                for i in range(3):
-                    x = cx - 8 + i * 8
-                    Line(points=[x, cy - 2, x + 2, cy - 9], width=1.3)
-            elif cond == 'snow':
-                Color(0.80, 0.87, 0.95, 0.90)
-                self._cloud(cx, cy + 4, 0.72)
-                Color(0.95, 0.97, 1.0, 0.9)
-                for i in range(3):
-                    Ellipse(pos=(cx - 9 + i*8 - 2, cy - 7), size=(4, 4))
-            elif cond == 'thunderstorm':
-                Color(0.28, 0.33, 0.38, 0.95)
-                self._cloud(cx, cy + 4, 0.78)
-                Color(0.98, 0.95, 0.20, 0.95)
-                Line(points=[cx, cy+2, cx-3, cy-3, cx+1, cy-3, cx-4, cy-10], width=2)
-
-    def _cloud(self, cx, cy, sc):
-        Rectangle(pos=(cx - 14*sc, cy - 6*sc), size=(28*sc, 12*sc))
-        Ellipse(pos=(cx - 14*sc, cy - 1*sc), size=(18*sc, 18*sc))
-        Ellipse(pos=(cx - 4*sc, cy + 1*sc), size=(22*sc, 22*sc))
-
-
 class DailyForecastCard(BoxLayout):
-    def __init__(self, forecasts: list, **kwargs):
+    def __init__(self, forecasts: list, units: str = 'F', **kwargs):
         super().__init__(**kwargs)
-        self._build(forecasts)
+        self._build(forecasts, units)
 
-    def _build(self, forecasts: list):
+    def _build(self, forecasts: list, units: str = 'F'):
         if not forecasts:
             return
 
@@ -239,7 +202,7 @@ class DailyForecastCard(BoxLayout):
         header = Label(
             text='10-DAY FORECAST',
             font_size=sp(11),
-            color=(1, 1, 1, 0.60),
+            color=(0.07, 0.14, 0.26, 0.60),
             size_hint_y=None,
             height=dp(20),
             halign='left',
@@ -251,7 +214,7 @@ class DailyForecastCard(BoxLayout):
         # Separator — keep named reference to avoid canvas.children[-1] pitfall
         sep = Widget(size_hint_y=None, height=dp(1))
         with sep.canvas:
-            Color(1, 1, 1, 0.18)
+            Color(0.07, 0.14, 0.26, 0.18)
             _sep_rect = Rectangle(pos=sep.pos, size=sep.size)
         sep.bind(pos=lambda w, v, r=_sep_rect: setattr(r, 'pos', v))
         sep.bind(size=lambda w, v, r=_sep_rect: setattr(r, 'size', (v[0], 1)))
@@ -269,13 +232,14 @@ class DailyForecastCard(BoxLayout):
                 day_label=label,
                 global_min=global_min,
                 global_max=global_max,
+                units=units,
             )
             self.add_widget(row)
 
             if i < len(forecasts) - 1:
                 divider = Widget(size_hint_y=None, height=dp(1))
                 with divider.canvas:
-                    Color(1, 1, 1, 0.10)
+                    Color(0.07, 0.14, 0.26, 0.10)
                     _div_rect = Rectangle(size=(1, 1))
 
                 def _update_divider(w, v, r=_div_rect):

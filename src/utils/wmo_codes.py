@@ -34,7 +34,7 @@ def get_label(code: int) -> str:
 
 
 def get_condition(code: int) -> str:
-    """Return the condition key used by WeatherBackground and icon drawers."""
+    """Return the condition key used by the hero gradient and icon drawers."""
     return _TABLE.get(code, _FALLBACK)[1]
 
 
@@ -43,9 +43,9 @@ def get_both(code: int) -> tuple[str, str]:
 
 
 # Background gradient colours per condition key (top_rgba, bottom_rgba) — day variants.
-# Night variants are handled separately in WeatherBackground by checking local time.
+# Used directly by the hero card background; get_gradients() picks day vs night.
 DAY_GRADIENTS: dict[str, tuple[tuple, tuple]] = {
-    'clear':         ((0.31, 0.76, 0.97, 1), (0.01, 0.47, 0.74, 1)),
+    'clear':         ((0.70, 0.83, 0.95, 1), (0.02, 0.51, 0.73, 1)),
     'partly_cloudy': ((0.39, 0.71, 0.96, 1), (0.08, 0.40, 0.75, 1)),
     'overcast':      ((0.33, 0.43, 0.48, 1), (0.21, 0.28, 0.31, 1)),
     'fog':           ((0.69, 0.75, 0.78, 1), (0.47, 0.57, 0.63, 1)),

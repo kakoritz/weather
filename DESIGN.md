@@ -23,8 +23,10 @@ is 1:1; the stack is different.
 1. **No API keys.** Every data source must work with zero credentials. No secrets in repo,
    no keys to rotate, no rate limits from forgotten env vars. Builds and runs on a fresh clone.
 
-2. **Gesture-first navigation.** Primary interaction is swipe left/right between locations.
-   The bottom bar is supplementary. On Android, taps are cheap; swipes are the experience.
+2. **Tap-arrow navigation (revised from original swipe-first plan).** Swipe between
+   locations was the original v1.0 intent but was fully disabled (`_WeatherCarousel.
+   on_touch_move` returns `False` unconditionally) in favor of explicit left/right arrow
+   buttons at the top of the hero. Bottom bar dots show position and are also tappable.
 
 3. **Always-current data.** Weather is cached for 10 minutes then silently refreshed in a
    background thread. The user never sees a spinner if cached data exists.
@@ -74,6 +76,19 @@ SIMD fix required for pygame is NOT needed here.
 **Why:** Free, no API key, HTTPS, returns all fields needed (temperature, humidity, wind,
 UV, pressure, visibility, sunrise/sunset, hourly + daily). Actively maintained. Used in
 production by the kakoritz dashboard project already.
+**Gotcha:** `moonrise`/`moonset` are NOT valid Open-Meteo daily params (confirmed 400
+error) despite existing as fields on the `DailyForecast` model — moon phase is computed
+locally instead (see `get_moon_phase()` in `wmo_codes.py`).
+
+### NWS Weather Alerts: api.weather.gov
+**URL:** `https://api.weather.gov/alerts/active?point={lat},{lon}`
+**Why:** Free, no API key, US only. Returns active watches/warnings/advisories. Non-US
+locations return a 404 or empty features array — handled gracefully. Max 3 alerts shown.
+
+### Temperature Map: Windy.com Embed
+**URL:** `https://embed.windy.com/embed2.html?lat=...&overlay=temp`
+**Why:** Free interactive temperature map, no API key for the embed. Opens in a native
+Android WebView Dialog (95% width, 85% height, cancelable with back button).
 
 ### Air Quality: Open-Meteo Air Quality API
 **URL:** `https://air-quality-api.open-meteo.com/v1/air-quality`
@@ -144,11 +159,21 @@ This is the standard Kivy pattern for background work.
 
 ### Background system
 
-Each weather condition maps to a gradient + particle set:
+**v1.2.0 change:** the hero card's background went through three iterations — animated
+gradient widget (v1.0, `WeatherBackground` in `weather_bg.py`) → real photo + dark scrim
+(v1.1, read as too dark on-device) → gradient again (v1.2, this time built directly in
+`WeatherDetailWidget` via `_make_gradient_texture()`, not a separate widget class).
+`weather_bg.py` was deleted as dead code once the photo system fully superseded it; the
+gradient-texture technique itself (1×256 RGB Kivy texture, generated once per build) is
+unchanged from the original approach, just inlined where it's used.
+
+Each weather condition maps to a gradient + particle set. `WeatherOverlay`
+(`weather_overlay.py`) still renders the per-condition particles (sun rays, rain, snow,
+lightning, stars) on top of the gradient, between it and the text layer:
 
 | Condition | Top color | Bottom color | Particles |
 |---|---|---|---|
-| Clear day | `#4FC3F7` | `#0277BD` | Animated sun rays + rays rotation |
+| Clear day | `#B3D4F2` | `#0582BA` | Animated sun rays + rays rotation |
 | Clear night | `#0D1B2A` | `#1A237E` | 40 twinkling stars |
 | Partly cloudy day | `#64B5F6` | `#1565C0` | Sun (partial) + 2 drifting clouds |
 | Partly cloudy night | `#1A237E` | `#263238` | Moon + 10 stars + 1 cloud |
@@ -159,18 +184,30 @@ Each weather condition maps to a gradient + particle set:
 | Snow | `#B3CCE8` | `#78909C` | White cloud + 16 drifting snowflakes |
 | Thunderstorm | `#1A0A2A` | `#0D0D1A` | Dark cloud + rain + lightning flash |
 
-Gradients are rendered as 1×256 RGB Kivy textures, created once on widget init.
-Particles are drawn each frame via `Clock.schedule_interval(1/30)` on the Canvas layer.
+Only `clear` day was relightened in v1.2.0 (explicit user request); other conditions
+keep their original, moodier gradients since they weren't reported as a problem.
 
-### Color palette (UI chrome)
+### Color palette (UI chrome) — two themes, by design
+
+The app intentionally runs **two different text/background pairings** depending on
+section, not one global theme:
+
+| Section | Background | Text |
+|---|---|---|
+| Hero card (city, temp, condition, H/L) | Per-condition gradient (table above) + `rgba(0,0,0,0.42)` scrim + particles | White — `#FFFFFF` at full opacity down to ~35% for tertiary text |
+| Details panel (hourly/daily/grid cards) | `#B3D4F2` flat (the held "light sky blue"), cards layered with `rgba(0,0,0,0.16)` | Dark navy — `rgb(0.07, 0.14, 0.26)` at full opacity down to ~35% for tertiary text |
+
+**Why two themes, not one:** white text needs a background luminance below ~0.18–0.20 for
+WCAG-AA contrast; the light sky blue the user wanted for the details panel sits at ~0.55+
+luminance, which only works with dark text. The hero kept white text because changing it
+wasn't requested and the gradient there still gets darker toward the bottom (where most
+hero text sits), giving it more contrast headroom than a flat light panel would.
 
 | Role | Color |
 |---|---|
-| Card background | `rgba(0, 0, 0, 0.20)` (frosted glass over gradient bg) |
-| Card border | `rgba(255, 255, 255, 0.15)` |
-| Primary text | `#FFFFFF` |
-| Secondary text | `rgba(255, 255, 255, 0.70)` |
-| Accent (rain) | `#93C5FD` |
+| Card border | `rgba(255, 255, 255, 0.15)` (hero) / `rgba(0,0,0, 0.10)` (details panel) |
+| Accent (rain, on dark hero) | `#93C5FD` |
+| Accent (rain, on light details panel) | `rgb(0.05, 0.30, 0.70)` — darkened so it doesn't wash out |
 | Accent (sun) | `#FCD34D` |
 | Bottom nav bar | `rgba(0, 0, 0, 0.35)` |
 
@@ -190,25 +227,43 @@ Particles are drawn each frame via `Clock.schedule_interval(1/30)` on the Canvas
 | Daily day | `sp(18)` | Regular |
 | Daily temp | `sp(18)` | Bold |
 
-### Card inventory (WeatherDetailScreen, scrolling)
+### Card inventory (WeatherDetailWidget, scrolling inside the details panel)
 
-1. **Hero** — city, temperature, condition, H/L (not a card; full width, no border)
-2. **Summary** — text description of next 12 hours ("Partly cloudy from 9AM–12PM…")
-3. **Hourly** — horizontal ScrollView; `NOW` + hours; icon + temp per slot
-4. **10-Day Forecast** — vertical list; day name, icon, precip%, temperature range bar
-5. **Air Quality** — US AQI value, category label, description, color scale bar, "See More"
-6. **Temperature Map** — regional map with temp overlay [v2 — placeholder in v1]
-7. **UV Index** — numeric value, label (Low/Moderate/High), color scale bar, advisory text
-8. **Sunset** — sunset time (large), arc graphic (sun position), sunrise time
-9. **Wind** — compass rose, speed, direction (SSW/NNE etc.)
-10. **Rainfall** — current 24h accumulation, expected next 24h
-11. **Feels Like** — apparent temperature, plain-English reason
-12. **Humidity** — percentage, dew point
-13. **Visibility** — miles, plain-English descriptor
-14. **Pressure** — gauge arc graphic, inHg value, trend (rising/falling)
+Full-width cards (top of scroll):
+1. **Alert Banner** — amber/red NWS alert rows (shown only when active alerts present)
+2. **Hourly** — horizontal ScrollView; `NOW` + 24h; condition icon + temp per slot; summary header
+3. **10-Day Forecast** — vertical list; day name, icon, precip%, temperature range bar
+4. **Air Quality** — US AQI value, category, color scale bar, "See More" → detail modal
+5. **Temperature Map** — Windy.com embed via Android WebView dialog; "See More" opens it
 
-Cards 5–14 are arranged in a 2-column grid (`GridLayout cols=2`).
-Cards 1–4 are full-width above the grid.
+2-column grid (below full-width cards):
+6. **UV Index** — numeric value, label, color scale bar, advisory text
+7. **Sunset** — sunset time, arc graphic showing sun position, sunrise time
+8. **Wind** — compass rose with needle, speed, direction label
+9. **Rainfall** — last 24h accumulation, expected next 24h
+10. **Feels Like** — apparent temperature, plain-English reason
+11. **Humidity** — percentage, dew point
+12. **Visibility** — miles, plain-English descriptor
+13. **Pressure** — gauge arc graphic, inHg value, trend (rising/falling/steady)
+
+**Removed in v1.2.0:** Nowcast ("Next 2 Hours" 15-min precipitation bar chart). User
+feedback was that it didn't add useful information over the hourly strip + daily
+precip%; removed UI, model (`NowcastEntry`), and the `minutely_15` API params entirely
+rather than leaving an unused fetch in place.
+
+### Layout architecture (v1.1.0)
+
+```
+WeatherDetailWidget (FloatLayout, black background)
+  └── BoxLayout (vertical, padding=[dp(12), dp(12), dp(12), dp(80)])
+       ├── Hero card (FloatLayout, stencil-clip dp(18) radius, animated bg)
+       ├── Widget (spacer dp(8))
+       └── Details card (BoxLayout, blue #1A2947, stencil-clip dp(18) radius)
+            └── ScrollView
+                 └── All data cards listed above
+```
+
+The dp(80) bottom padding gives clearance for the dp(52) nav bar + breathing room.
 
 ---
 
@@ -265,27 +320,52 @@ The `android.yml` workflow:
 
 ---
 
+## Breezy-Weather Learnings (v1.1.0+)
+
+[breezy-weather](https://github.com/breezy-weather/breezy-weather) is a production
+Kotlin/Android weather app studied as a UX and feature reference in 2026-06.
+
+### Implemented from Breezy (v1.1.0)
+- **Precipitation nowcasting** — 15-min bar chart ("Next 2 Hours"). Breezy shows this
+  as their highest-signal card; we implemented using Open-Meteo `minutely_15`.
+- **NWS weather alerts** — Breezy supports 5+ alert sources. We implemented US NWS only
+  (free, no key) as an amber banner at top of scroll.
+- **Floating card layout** — Inspired by breezy's Material 3 block-style cards.
+
+### On the Backlog from Breezy
+- **Moon rise/set times** — Breezy computes these locally using astronomical algorithms.
+  Open-Meteo does NOT provide them. Implementation: use `ephem` or pure-Python calculation
+  from lat/lon. Fields (`moonrise`, `moonset`) already exist in `DailyForecast` model.
+- **Pollen/allergen data** — Copernicus free API. High value for allergy sufferers.
+- **Climate normals** — "5° above normal" context. Open-Meteo has historical data endpoint.
+- **Reorderable cards** — Drag to reorder the detail card grid. Nice polish, medium effort.
+- **Precipitation radar** — Breezy defers to Windy/RainViewer; we already do Windy for temp.
+
+### Breezy Animation Approach (future reference)
+Breezy implements 7 canvas-based weather animation `implementors` (Rain, Snow, Hail,
+Cloud, Wind, Sun, Meteor Shower) with frame interpolation and accelerometer input.
+See: `breezy-weather/app/src/main/java/org/breezyweather/ui/weather/view/materialWeatherView/`
+Our particle system in `src/widgets/weather_overlay.py` uses a similar approach but
+without gravity/sensor input. Sensor-driven animations are a v2+ consideration.
+
+---
+
 ## Future Work (v1.x / v2.0)
 
 ### v1.x
-
-- **Temperature map card** — WebView with OpenWeatherMap raster tile layers + OSM base
-- **"See More" for Air Quality** — expand card to show PM2.5, PM10, O3, NO2 breakdown
+- **Moon rise/set** — astronomical calculation from lat/lon (no API needed)
+- **Pollen card** — Copernicus free pollen API (PM, grass, tree, weed counts)
 - **"See More" for UV** — 24h UV curve chart using Kivy Canvas
 - **"See More" for Pressure** — 24h pressure trend line chart
-- **Precipitation chart** — hourly rain probability bar chart
 - **Push notifications** — weather alerts via Android WorkManager (requires Kotlin bridge)
-- **Widget** — Android home screen widget showing current temp + condition
-- **Unit toggle** — °F / °C, mph / km/h, in / mm
-- **Dark/light background** — user override separate from time-of-day logic
+- **Unit toggle** — °F / °C stored per-location, toggleable from menu (C/F already in menu)
 
 ### v2.0
-
-- **Weather map screen** — full-screen interactive map with temperature/precipitation/wind
-  layers; tap map icon in bottom nav to access
-- **Severe weather alerts** — NWS CAP/ATOM alerts for US locations
+- **Weather map screen** — full-screen Windy embed in bottom nav
+- **Climate normals** — "5° above normal for this date" context in hero card
+- **Reorderable detail cards** — drag to rearrange the grid
 - **Historical data** — past 7 days charts
-- **Multi-language** — internationalization via Kivy's i18n system
+- **Sensor-driven animations** — accelerometer input for gravity-aware particle effects
 - **iPad / tablet layout** — side-by-side location list + detail
 
 ---

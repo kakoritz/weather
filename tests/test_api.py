@@ -197,8 +197,9 @@ def test_extract_city_falls_back_to_village():
 
 
 def test_extract_city_falls_back_to_county():
+    # " County" suffix is stripped so city displays as just the name
     addr = {'county': 'Rutherford County'}
-    assert _extract_city(addr) == 'Rutherford County'
+    assert _extract_city(addr) == 'Rutherford'
 
 
 def test_extract_city_empty_on_no_match():

@@ -14,6 +14,7 @@ from kivy.uix.image import Image
 
 from src.models.weather import HourlyEntry
 from src.utils.wmo_codes import get_icon_path, is_night
+from src.utils.units import fmt_temp
 
 KV = """
 <HourlyForecastCard>:
@@ -24,13 +25,13 @@ KV = """
     spacing: dp(8)
     canvas.before:
         Color:
-            rgba: 0, 0, 0, 0.22
+            rgba: 0, 0, 0, 0.16
         RoundedRectangle:
             pos: self.pos
             size: self.size
             radius: [dp(16)]
         Color:
-            rgba: 1, 1, 1, 0.12
+            rgba: 0.07, 0.14, 0.26, 0.12
         Line:
             rounded_rectangle: [self.x, self.y, self.width, self.height, dp(16)]
             width: 1
@@ -38,19 +39,20 @@ KV = """
 <HourlySlot>:
     orientation: 'vertical'
     size_hint: None, 1
-    width: dp(58)
-    spacing: dp(4)
-    padding: [dp(6), dp(4)]
+    width: dp(62)
+    spacing: dp(3)
+    padding: [dp(6), dp(6), dp(6), dp(6)]
 """
 
 Builder.load_string(KV)
 
 
 class HourlySlot(BoxLayout):
-    def __init__(self, entry: HourlyEntry, is_now: bool = False, **kwargs):
+    def __init__(self, entry: HourlyEntry, is_now: bool = False, units: str = 'F', **kwargs):
         super().__init__(**kwargs)
         self._entry = entry
         self._is_now = is_now
+        self._units = units
         Clock.schedule_once(self._draw, 0)
 
     def _draw(self, *_):
@@ -72,16 +74,17 @@ class HourlySlot(BoxLayout):
         # Highlight for NOW
         if self._is_now:
             with self.canvas.before:
-                Color(1, 1, 1, 0.15)
+                Color(0.07, 0.14, 0.26, 0.15)
                 RoundedRectangle(pos=self.pos, size=self.size, radius=[dp(10)])
 
+        # Time label — larger, bold, white
         time_lbl = Label(
             text=time_str,
-            font_size=sp(13),
-            color=(1, 1, 1, 0.85) if not self._is_now else (1, 1, 1, 1),
-            bold=self._is_now,
+            font_size=sp(15),
+            color=(0.07, 0.14, 0.26, 1),
+            bold=True,
             size_hint_y=None,
-            height=dp(18),
+            height=dp(20),
         )
         self.add_widget(time_lbl)
 
@@ -91,29 +94,29 @@ class HourlySlot(BoxLayout):
         except Exception:
             night = False
         icon_path = get_icon_path(entry.code, night)
-        icon = Image(source=icon_path, size_hint=(1, None), height=dp(36))
+        icon = Image(source=icon_path, size_hint=(1, None), height=dp(38))
         self.add_widget(icon)
 
-        # Precip probability (if > 0)
         if entry.precip_prob > 0:
             pp_lbl = Label(
                 text=f'{entry.precip_prob}%',
-                font_size=sp(11),
-                color=(0.58, 0.78, 0.99, 1.0),
+                font_size=sp(12),
+                color=(0.05, 0.30, 0.70, 1.0),
                 size_hint_y=None,
-                height=dp(14),
+                height=dp(16),
             )
             self.add_widget(pp_lbl)
         else:
-            self.add_widget(Widget(size_hint_y=None, height=dp(14)))
+            self.add_widget(Widget(size_hint_y=None, height=dp(16)))
 
+        # Temperature — large bold white, easy to read
         temp_lbl = Label(
-            text=f'{entry.temp}°',
-            font_size=sp(16),
+            text=fmt_temp(entry.temp, self._units),
+            font_size=sp(18),
             bold=True,
-            color=(1, 1, 1, 1),
+            color=(0.07, 0.14, 0.26, 1),
             size_hint_y=None,
-            height=dp(22),
+            height=dp(24),
         )
         self.add_widget(temp_lbl)
 
@@ -201,11 +204,30 @@ class _WeatherIconSmall(Widget):
 
 
 class HourlyForecastCard(BoxLayout):
-    def __init__(self, entries: list, first_is_now: bool = False, **kwargs):
+    def __init__(self, entries: list, first_is_now: bool = False,
+                 summary: str = '', units: str = 'F', **kwargs):
         super().__init__(**kwargs)
-        self._build(entries, first_is_now)
+        self._build(entries, first_is_now, summary, units)
 
-    def _build(self, entries: list, first_is_now: bool):
+    def _build(self, entries: list, first_is_now: bool, summary: str, units: str):
+        from kivy.uix.label import Label as _Lbl
+
+        # Summary text sits INSIDE the hourly card as its header — one unified card
+        if summary:
+            summary_lbl = _Lbl(
+                text=summary,
+                font_size=sp(14),
+                bold=False,
+                color=(0.07, 0.14, 0.26, 0.85),
+                size_hint=(1, None),
+                height=dp(32),
+                halign='left',
+                valign='middle',
+                padding=[dp(8), 0],
+            )
+            summary_lbl.bind(size=summary_lbl.setter('text_size'))
+            self.add_widget(summary_lbl)
+
         scroll = ScrollView(
             do_scroll_x=True,
             do_scroll_y=False,
@@ -220,12 +242,10 @@ class HourlyForecastCard(BoxLayout):
         )
 
         for i, entry in enumerate(entries):
-            # When first_is_now=True the first entry IS now; never anything before it.
             is_now = (i == 0 and first_is_now)
-            slot = HourlySlot(entry=entry, is_now=is_now)
+            slot = HourlySlot(entry=entry, is_now=is_now, units=units)
             row.add_widget(slot)
 
         row.width = (dp(58) + dp(4)) * len(entries) + dp(8)
         scroll.add_widget(row)
         self.add_widget(scroll)
-        # Always start at the left (NOW is first, nothing to scroll to)

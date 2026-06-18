@@ -2,7 +2,7 @@
 title           = Weather
 package.name    = weatherapp
 package.domain  = org.kakoritz
-version         = 1.0.0
+version         = 1.2.0
 
 source.dir      = .
 source.include_exts = py,png,jpg,jpeg,kv,atlas,json,ttf,otf
@@ -31,8 +31,11 @@ android.accept_sdk_license = True
 android.permissions = INTERNET,ACCESS_NETWORK_STATE
 
 # NOTE: buildozer reads 'icon.filename' and 'presplash.filename' (NOT android.* prefix)
-icon.filename             = %(source.dir)s/assets/icon.png
-presplash.filename        = %(source.dir)s/assets/presplash.jpg
+icon.filename                          = %(source.dir)s/assets/icon.png
+# Adaptive icon layers (Android 8+ — gives proper circle with no white ring)
+icon.adaptive_foreground.filename      = %(source.dir)s/assets/icon_fg.png
+icon.adaptive_background.filename      = %(source.dir)s/assets/icon_bg.png
+presplash.filename                     = %(source.dir)s/assets/presplash.jpg
 
 # Local build dir — NOT on NAS, must be a local path with no spaces
 # Thousands of small file writes; network share causes SIGBUS and extreme slowness

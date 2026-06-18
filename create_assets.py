@@ -43,7 +43,7 @@ def _gradient_color(y_frac, stops):
 # ─── presplash ─────────────────────────────────────────────────────────────────
 
 def make_presplash():
-    W, H = 1080, 1920
+    W, H = 1440, 3200
 
     # ── sky gradient (scanline) ───────────────────────────────────────────────
     sky = Image.new('RGB', (W, H))
@@ -341,9 +341,59 @@ def make_icon():
     sd.ellipse([CX-R//2, CY-R//2, CX+R//2, CY+R//2], fill=(255, 255, 230, 255))
     img = Image.alpha_composite(img, sun)
 
+    # Save legacy icon (fallback for older Android)
     path = os.path.join(ASSETS_DIR, 'icon.png')
     img.save(path, 'PNG')
     print(f'Created {path}')
+
+    # ── Adaptive icon layers (Android 8+) ─────────────────────────────────────
+    # Background: solid sky blue fill (Android crops this to circle/squircle)
+    bg = Image.new('RGB', (512, 512), (52, 152, 235))
+    bg_path = os.path.join(ASSETS_DIR, 'icon_bg.png')
+    bg.save(bg_path, 'PNG')
+    print(f'Created {bg_path}')
+
+    # Foreground: sun on transparent background, centred in safe zone
+    # Safe zone = inner 66% of 512x512 → content within 84px margin
+    fg = Image.new('RGBA', (512, 512), (0, 0, 0, 0))
+    fg_sun = Image.new('RGBA', (512, 512), (0, 0, 0, 0))
+    fsd = ImageDraw.Draw(fg_sun)
+    FCX = FCY = 256
+
+    # Glow rings (keep within safe zone margin ~84px)
+    for r, a in [(145, 18), (125, 38), (108, 65), (92, 100)]:
+        fg_glow = Image.new('RGBA', (512, 512), (0, 0, 0, 0))
+        fgd = ImageDraw.Draw(fg_glow)
+        fgd.ellipse([FCX-r, FCY-r, FCX+r, FCY+r], fill=(255, 235, 90, a))
+        fg_glow = fg_glow.filter(ImageFilter.GaussianBlur(radius=r // 5))
+        fg = Image.alpha_composite(fg, fg_glow)
+
+    # Rays (stay in safe zone: outer edge ~168px from center)
+    fg_rays = Image.new('RGBA', (512, 512), (0, 0, 0, 0))
+    frd = ImageDraw.Draw(fg_rays)
+    for i in range(12):
+        angle = math.radians(i * 30 - 90)
+        al = angle - math.radians(7)
+        ar = angle + math.radians(7)
+        bx1 = FCX + math.cos(al) * 92
+        by1 = FCY + math.sin(al) * 92
+        bx2 = FCX + math.cos(ar) * 92
+        by2 = FCY + math.sin(ar) * 92
+        tx  = FCX + math.cos(angle) * 155
+        ty  = FCY + math.sin(angle) * 155
+        frd.polygon([(bx1, by1), (bx2, by2), (tx, ty)], fill=(255, 248, 160, 200))
+    fg_rays = fg_rays.filter(ImageFilter.GaussianBlur(radius=4))
+    fg = Image.alpha_composite(fg, fg_rays)
+
+    # Sun disc
+    fsd.ellipse([FCX-82, FCY-82, FCX+82, FCY+82], fill=(255, 230, 80, 210))
+    fsd.ellipse([FCX-78, FCY-78, FCX+78, FCY+78], fill=(255, 248, 140, 255))
+    fsd.ellipse([FCX-40, FCY-40, FCX+40, FCY+40], fill=(255, 255, 230, 255))
+    fg = Image.alpha_composite(fg, fg_sun)
+
+    fg_path = os.path.join(ASSETS_DIR, 'icon_fg.png')
+    fg.save(fg_path, 'PNG')
+    print(f'Created {fg_path}')
 
 
 # ─── main ──────────────────────────────────────────────────────────────────────
