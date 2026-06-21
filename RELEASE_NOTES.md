@@ -36,7 +36,28 @@ enough to read white text clearly on top.
   instead of a flat black/dark placeholder.
 
 ### Fixed
-- N/A this release — purely visual.
+- **NWS alert severity was discarded — every alert rendered as the same bold red
+  banner regardless of actual urgency.** Found via a direct side-by-side comparison
+  against iOS Weather for a real location (Matthews, NC): two "Special Weather
+  Statement" (Moderate severity, fire-danger) alerts looked exactly as urgent as a
+  Tornado Warning would, which read as contradicting the "Mainly Clear" current
+  conditions shown right next to them — they weren't contradicting it, fire risk and
+  sky condition are unrelated hazards, but identical styling hid that distinction.
+  Alert color now maps to NWS's CAP `severity` field (Extreme/Severe → red,
+  Moderate → amber, Minor → muted yellow), and the alert's `event` type is shown
+  prominently instead of the auto-generated headline. New `WeatherAlert` dataclass
+  replaces the old `list[str]`; `to_dict`/`from_dict` handle old cached data
+  gracefully. New `_SlideUpModal`-based tap-to-expand for the full description.
+- **Duplicate-looking alert banners — NWS reissues the same advisory every few
+  hours while the prior issuance is still technically active.** Verified directly
+  against the live NWS API for the same Matthews, NC alerts: two entries, same
+  event, issued 1:44 AM and 9:56 AM, neither expired yet. `_fetch_nws_alerts()` now
+  dedupes by `event`, keeping only the most recently `sent` one.
+- **Confirmed NOT a bug, documented instead:** Open-Meteo's current condition and
+  H/L numbers disagreeing with iOS Weather for the same place/time is genuine
+  provider/model variance (verified by querying Open-Meteo's API directly), not a
+  parsing bug in this app. See DESIGN.md's NWS Weather Alerts section for the
+  full writeup — switching providers would mean giving up the zero-API-key principle.
 
 ---
 

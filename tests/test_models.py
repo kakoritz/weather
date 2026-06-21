@@ -3,7 +3,7 @@ import pytest
 from src.models.location import Location
 from src.models.weather import (
     WeatherData, CurrentConditions, HourlyEntry, DailyForecast,
-    AirQualityData, wind_direction_label, pressure_trend,
+    AirQualityData, WeatherAlert, wind_direction_label, pressure_trend,
     feels_like_reason, visibility_description,
 )
 
@@ -68,6 +68,7 @@ def _make_weather(**overrides) -> WeatherData:
     data = WeatherData(
         location_zip='28139', fetched_at='2025-06-01T08:09:00',
         current=current, daily=daily, hourly=hourly,
+        **overrides,
     )
     return data
 
@@ -113,6 +114,32 @@ def test_weather_data_round_trip():
     assert restored.current.temp == data.current.temp
     assert len(restored.daily) == len(data.daily)
     assert len(restored.hourly) == len(data.hourly)
+
+
+# ──────────────────────────────────────────────
+# WeatherAlert
+# ──────────────────────────────────────────────
+
+def test_weather_alert_round_trip():
+    data = _make_weather(alerts=[
+        WeatherAlert(event='Special Weather Statement', headline='SWS issued...',
+                     description='Fire danger.', severity='Moderate', sent='2026-06-18T09:56'),
+    ])
+    restored = WeatherData.from_dict(data.to_dict())
+    assert len(restored.alerts) == 1
+    assert restored.alerts[0].event == 'Special Weather Statement'
+    assert restored.alerts[0].severity == 'Moderate'
+
+
+def test_weather_alert_backward_compat_plain_strings():
+    """Old cache had alerts as list[str]; from_dict must not crash on it."""
+    d = _make_weather().to_dict()
+    d['alerts'] = ['Some old headline string']
+    restored = WeatherData.from_dict(d)
+    assert len(restored.alerts) == 1
+    assert isinstance(restored.alerts[0], WeatherAlert)
+    assert restored.alerts[0].headline == 'Some old headline string'
+    assert restored.alerts[0].severity == 'Unknown'
 
 
 # ──────────────────────────────────────────────

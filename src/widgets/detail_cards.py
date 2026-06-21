@@ -776,8 +776,24 @@ class TemperatureMapCard(_BaseCard):
 # Alert Banner
 # ──────────────────────────────────────────────
 
+# NWS CAP severity → banner color. A "Moderate" fire-danger statement and a
+# "Tornado Warning" used to render identically (same solid red) — that's what
+# made an unrelated, non-urgent advisory read as contradicting a sunny
+# forecast. Color now actually carries severity information.
+_ALERT_SEVERITY_COLORS = {
+    'Extreme':  (0.75, 0.10, 0.08, 0.95),
+    'Severe':   (0.80, 0.25, 0.08, 0.95),
+    'Moderate': (0.80, 0.55, 0.10, 0.95),
+    'Minor':    (0.62, 0.58, 0.20, 0.90),
+}
+_ALERT_DEFAULT_COLOR = (0.35, 0.38, 0.45, 0.90)   # 'Unknown' / unmapped severity
+
+
 class AlertBanner(BoxLayout):
-    """Amber alert rows shown at the top of the details card when NWS alerts are active."""
+    """Severity-colored alert rows shown at the top of the details card when
+    NWS alerts are active. Shows the alert TYPE (event) prominently rather
+    than the wordy auto-generated headline, so it's clear at a glance what
+    kind of hazard this is — tap a row for the full description."""
 
     def __init__(self, alerts: list, **kwargs):
         # Top padding here, not bottom — AlertBanner can be the first card in the
@@ -786,15 +802,16 @@ class AlertBanner(BoxLayout):
         # panel edge. Bottom separation from the next card already comes from the
         # leading dp(12) spacer add_card() inserts before every card but the first.
         super().__init__(orientation='vertical', size_hint=(1, None),
-                         spacing=dp(4), padding=[0, dp(8), 0, 0], **kwargs)
+                         spacing=dp(6), padding=[0, dp(8), 0, 0], **kwargs)
         self.bind(minimum_height=self.setter('height'))
         from kivymd.uix.button import MDIconButton
 
         for alert in alerts[:2]:
+            color = _ALERT_SEVERITY_COLORS.get(alert.severity, _ALERT_DEFAULT_COLOR)
             row = BoxLayout(orientation='horizontal', size_hint=(1, None),
-                            height=dp(42), padding=[dp(10), dp(4)])
+                            height=dp(58), padding=[dp(10), dp(6)], spacing=dp(8))
             with row.canvas.before:
-                Color(0.75, 0.22, 0.08, 0.95)
+                Color(*color)
                 _rb = RoundedRectangle(pos=row.pos, size=row.size, radius=[dp(8)])
             row.bind(
                 pos=lambda w, v, r=_rb: setattr(r, 'pos', v),
@@ -802,17 +819,59 @@ class AlertBanner(BoxLayout):
             )
             row.add_widget(MDIconButton(
                 icon='alert', theme_icon_color='Custom',
-                icon_color=(1.0, 0.90, 0.30, 1), icon_size=dp(18),
-                size_hint=(None, 1), width=dp(28),
+                icon_color=(1.0, 0.90, 0.30, 1), icon_size=dp(20),
+                size_hint=(None, 1), width=dp(30),
             ))
-            lbl = Label(
-                text=alert, font_size=sp(12), bold=False,
-                color=(1, 1, 1, 0.95), size_hint=(1, 1),
+
+            text_col = BoxLayout(orientation='vertical', size_hint=(1, 1))
+            event_lbl = Label(
+                text=alert.event, font_size=sp(13), bold=True,
+                color=(1, 1, 1, 1), size_hint=(1, 1),
+                halign='left', valign='bottom',
+            )
+            event_lbl.bind(size=lambda w, v: setattr(w, 'text_size', (v[0], None)))
+            text_col.add_widget(event_lbl)
+            snippet_lbl = Label(
+                text=(alert.description[:70] + '…') if len(alert.description) > 70
+                     else (alert.description or 'Tap for details'),
+                font_size=sp(11), bold=False,
+                color=(1, 1, 1, 0.80), size_hint=(1, 1),
+                halign='left', valign='top',
+            )
+            snippet_lbl.bind(size=lambda w, v: setattr(w, 'text_size', (v[0], None)))
+            text_col.add_widget(snippet_lbl)
+            row.add_widget(text_col)
+
+            row.bind(on_touch_up=lambda w, t, a=alert:
+                     self._open_detail(a) if w.collide_point(*t.pos) else None)
+            self.add_widget(row)
+
+    def _open_detail(self, alert):
+        def _wrapping_label(text, font_size, color):
+            """Auto-sizes height to its own wrapped text — box.width isn't
+            reliable at construction time, so bind off the label's own width
+            (set once Kivy lays it out) rather than guessing a fixed value."""
+            lbl = Label(text=text, font_size=font_size, color=color,
+                       size_hint_y=None, halign='left', valign='top')
+            lbl.bind(width=lambda w, v: setattr(w, 'text_size', (v, None)))
+            lbl.bind(texture_size=lambda w, v: setattr(w, 'height', v[1]))
+            return lbl
+
+        def build(box):
+            box.add_widget(_wrapping_label(alert.headline, sp(15), (1, 1, 1, 1)))
+            severity_lbl = Label(
+                text=f'Severity: {alert.severity}',
+                font_size=sp(12), color=(1, 1, 1, 0.65),
+                size_hint_y=None, height=dp(24),
                 halign='left', valign='middle',
             )
-            lbl.bind(size=lambda w, v: setattr(w, 'text_size', (v[0], None)))
-            row.add_widget(lbl)
-            self.add_widget(row)
+            severity_lbl.bind(size=lambda w, v: setattr(w, 'text_size', v))
+            box.add_widget(severity_lbl)
+            box.add_widget(_wrapping_label(
+                alert.description or 'No further details provided.',
+                sp(14), (1, 1, 1, 0.90),
+            ))
+        _SlideUpModal.show(alert.event, build, self)
 
 
 # ──────────────────────────────────────────────

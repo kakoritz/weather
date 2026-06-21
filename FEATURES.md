@@ -7,6 +7,31 @@ becomes a RELEASE_NOTES entry.
 
 ---
 
+## Session 2026-06-21 — iOS side-by-side comparison
+
+Triggered by the user doing a direct comparison against iOS Weather for the same
+location (Matthews, NC) at the same time and finding the results "massively
+different" — both in data and in visual polish. Each concern was investigated
+separately rather than assumed; they turned out to be three very different things.
+
+| Concern | Finding | Action |
+|---|---|---|
+| Current temp/condition disagrees with iOS | **Not a bug.** Queried Open-Meteo's live API directly for the same coordinates: current code was `1` (Mainly Clear) at 84.1°F, today's H/L was 91.8°/73.7°F — exactly what the app displayed. Genuine model disagreement between Open-Meteo's default model and Apple WeatherKit's blended sources, most visible during fast-changing convective weather. | Documented in DESIGN.md so it isn't re-investigated as a bug next time. Not fixable without switching providers, which means giving up the zero-API-key principle. |
+| Red alert banners look like they contradict "Mainly Clear, sunny" | **Real bug**, but not the one it looked like. Pulled the actual NWS alert data: both are "Special Weather Statement," severity **Moderate**, about *fire danger* (wind+heat+dry fuels) — unrelated to rain, and not contradicting the sky at all. The actual bug: every alert rendered in the same urgent red regardless of severity, and the headline text didn't surface what hazard it was about. | Fixed — severity now maps to banner color (deep red Extreme/Severe → amber Moderate → muted yellow Minor), `event` type shown prominently, tap-to-expand for full description. New `WeatherAlert` dataclass. |
+| Two near-identical alert banners look like a duplicate-rendering bug | **Real bug.** Confirmed via the live NWS API: NWS reissues an updated version of an ongoing advisory every few hours (1:44 AM and 9:56 AM issuances, same fire-danger situation, neither expired) — not a software duplication. | Fixed — `_fetch_nws_alerts()` dedupes by `event` name, keeping the most recently `sent` one. Documented tradeoff: a rare second, genuinely distinct alert sharing the same generic event category would be hidden too. |
+| App looks "cartoony" vs iOS's photographic backgrounds | **Known, already-documented tradeoff**, not new. DESIGN.md already explains the gradient+Canvas-particle approach as a deliberate choice given no licensed photo assets, vs. iOS's team-built, years-iterated photographic system. Real gap, not a quick fix. | No action this session — would need real visual-asset work, not a bug fix. Left on the backlog (see Game Plan). |
+| iOS shows a conditional "Possible Light Rain / Stay Dry" minutecast card | This is the precipitation Nowcast feature built in v1.1.0 and **explicitly removed** in v1.2.0 per direct feedback that an always-on bar chart didn't add value over the hourly strip. iOS's version is *conditional* (only appears when rain is imminent within the hour) — a meaningfully different product than what got cut. | **Deferred, not re-implemented.** User chose to prioritize the alert fix first; this needs its own decision before any code changes. See Game Plan. |
+
+**Verification status — incomplete.** Unit tests for the alert fix (severity sort,
+dedup, backward-compat parsing) all pass — 75/75 — and the APK builds and installs.
+**The actual on-device visual check (does the real Matthews, NC fire-danger alert show
+amber instead of red?) was never completed** — the device disconnected mid-verification
+and the session ended before reconnecting. Full honesty on this in CLAUDE_REVIEW.md's
+2026-06-21 update. First thing to do next session: reconnect the device and finish that
+check before claiming this is "done."
+
+---
+
 ## Session 2026-06-17 — Visual fixes shipped
 
 | Issue | Root cause | Fix |
@@ -238,6 +263,29 @@ New Phase 1 leftover, found during this pass: `AddLocationScreen` is also dead c
 **New since last pass:**
 13. Clean up `AddLocationScreen` dead code (`add_location.py` + the unreachable methods
     in `main.py` that reference it).
-14. Consider a code-level guard against the two-theme (white-on-dark hero /
-    dark-on-light details panel) mixing incorrectly in a future card — e.g. shared
-    color constants per zone instead of each widget file hardcoding its own.
+14. ~~Code-level guard against the two-theme mixing incorrectly~~ — **moot.** The
+    v1.3.0 one-continuous-screen redesign deleted the second theme entirely instead of
+    guarding it; every card is the same frosted-glass treatment now.
+
+**Phase 0 — Finish before anything else (2026-06-21 session left this open)**
+0. **Finish the on-device verification of the alert severity fix.** Navigate to the
+   Matthews, NC location, open the details, confirm the two real fire-danger alerts
+   render amber (Moderate), not red, and that they're deduped to one row. The device
+   disconnected mid-check last session — this is implemented and unit-tested but has
+   not been looked at on a real screen yet. Do this before committing to the claim
+   that it's done.
+
+**New from the 2026-06-21 iOS comparison session:**
+15. Decide on a conditional precipitation nudge (iOS's "Possible Light Rain / Stay
+    Dry" pattern: only appears when rain is imminent within the hour, plain-English
+    framing) as a *different* feature from the always-on Nowcast bar chart that was
+    cut in v1.2.0. Needs explicit user sign-off before any code — the removal was a
+    deliberate, feedback-driven decision and shouldn't be quietly reversed.
+16. Visual fidelity gap vs. iOS's photographic backgrounds is real and larger than a
+    quick fix — would need actual texture/photo assets (even just CC0/permissively
+    licensed cloud textures layered into the existing gradient+particle system, not
+    full scenic photos) rather than more gradient/particle tuning. Scope as its own
+    effort, not a bolt-on to the next visual pass.
+17. Provider/model disagreement vs. other weather apps is now documented as expected
+    (DESIGN.md, RELEASE_NOTES.md v1.3.0) — if this surfaces again in a future
+    comparison, check the doc before re-investigating from scratch.

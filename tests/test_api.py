@@ -6,7 +6,7 @@ import json
 import pytest
 import responses as resp_mock
 
-from src.api.weather import _parse_forecast, _parse_air_quality
+from src.api.weather import _parse_forecast, _parse_air_quality, _fetch_nws_alerts, _NWS_URL
 from src.api.geocoding import _extract_city, _state_abbr
 from src.models.weather import WeatherData, AirQualityData
 
@@ -157,6 +157,54 @@ def test_parse_air_quality_pm_values(sample_aq_json):
     aq = _parse_air_quality(sample_aq_json)
     assert aq.pm2_5 == pytest.approx(12.3)
     assert aq.pm10 == pytest.approx(18.5)
+
+
+# ──────────────────────────────────────────────
+# NWS alerts — dedup + severity sort
+# ──────────────────────────────────────────────
+
+def _nws_feature(event, sent, severity='Moderate', headline=None, description=''):
+    return {
+        'properties': {
+            'event': event, 'sent': sent, 'severity': severity,
+            'headline': headline or f'{event} issued {sent}',
+            'description': description,
+        }
+    }
+
+
+@resp_mock.activate
+def test_fetch_nws_alerts_dedupes_same_event_keeps_newest():
+    """Real-world case that motivated this: NWS reissues the same Special
+    Weather Statement every few hours for an ongoing situation. Without
+    dedup, both showed as separate banners and looked like a rendering bug."""
+    resp_mock.add(resp_mock.GET, _NWS_URL, json={'features': [
+        _nws_feature('Special Weather Statement', '2026-06-18T01:44:00-04:00',
+                     description='older issuance'),
+        _nws_feature('Special Weather Statement', '2026-06-18T09:56:00-04:00',
+                     description='newer issuance'),
+    ]}, status=200)
+
+    alerts = _fetch_nws_alerts(35.1168, -80.7223)
+    assert len(alerts) == 1
+    assert alerts[0].description == 'newer issuance'
+
+
+@resp_mock.activate
+def test_fetch_nws_alerts_sorts_most_severe_first():
+    resp_mock.add(resp_mock.GET, _NWS_URL, json={'features': [
+        _nws_feature('Special Weather Statement', '2026-06-18T09:56:00-04:00', severity='Moderate'),
+        _nws_feature('Tornado Warning', '2026-06-18T10:00:00-04:00', severity='Extreme'),
+    ]}, status=200)
+
+    alerts = _fetch_nws_alerts(35.1168, -80.7223)
+    assert [a.event for a in alerts] == ['Tornado Warning', 'Special Weather Statement']
+
+
+@resp_mock.activate
+def test_fetch_nws_alerts_empty_on_error():
+    resp_mock.add(resp_mock.GET, _NWS_URL, json={}, status=500)
+    assert _fetch_nws_alerts(35.1168, -80.7223) == []
 
 
 # ──────────────────────────────────────────────

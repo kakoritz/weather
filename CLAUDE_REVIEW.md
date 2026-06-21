@@ -27,6 +27,43 @@ happened in earlier sessions of this project.
 
 ---
 
+### Update 2026-06-21 — alert severity fix, NOT yet visually verified
+
+This release is still unshipped (PR open, unmerged) when this was added, so it's an
+addendum to the v1.3.0 entry above rather than a new version section.
+
+**What happened:** the user did a direct side-by-side comparison against iOS Weather
+for a real location (Matthews, NC) and found two things that looked like bugs. One
+genuinely was: every NWS alert rendered in the same bold-red banner regardless of
+actual severity, so a Moderate fire-danger statement looked as urgent as a Tornado
+Warning would — which is why it read as contradicting a "Mainly Clear" sky right next
+to it. The other (temp/condition disagreeing with iOS) was investigated and confirmed
+to be genuine provider/model variance, not a bug, by querying Open-Meteo's live API
+directly rather than guessing — this is the right way to settle a "which side is
+wrong" question and should be the default move when a data discrepancy is reported,
+not just here.
+
+**What's solid:** the severity-color mapping and same-event dedup logic both have real
+unit test coverage added in the same change (`test_fetch_nws_alerts_dedupes_same_event_keeps_newest`,
+`test_fetch_nws_alerts_sorts_most_severe_first`), not just manual eyeballing — a step
+up from how some earlier visual fixes in this project shipped with zero automated
+coverage. Also caught and fixed a real latent bug in the test suite itself while adding
+these: `_make_weather(**overrides)` in `test_models.py` accepted overrides but never
+applied them to the constructed object — harmless until a test actually tried to use
+the parameter, which mine was the first to do.
+
+**What's explicitly NOT done:** the on-device visual verification this fix was building
+toward — navigating to Matthews, NC and confirming the real fire-danger alerts render
+with the correct amber (Moderate) color, not red — was never completed. The device
+disconnected mid-session and the work session ended before it reconnected. The code
+builds, 75/75 unit tests pass, and the APK installs, but **nobody has looked at this
+specific UI on a real screen.** Given this project's own track record (a "fixed" v1.1.0
+menu bug that wasn't actually fixed, caught only by a later real device session), that
+distinction matters and shouldn't get blurred in retelling — this is "implemented and
+tested," not "verified."
+
+---
+
 ### What's working well
 
 **The single-theme simplification is a real architectural improvement, not just a
