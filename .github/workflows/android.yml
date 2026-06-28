@@ -33,7 +33,7 @@ jobs:
           sudo apt-get install -y \
             git zip unzip autoconf libtool pkg-config \
             zlib1g-dev cmake libffi-dev libssl-dev libltdl-dev \
-            libcairo2-dev python3-dev
+            libcairo2-dev python3-dev apksigner
 
       - name: Install buildozer and tools
         run: pip install 'buildozer>=1.5' 'cython==0.29.37' pillow cairosvg
@@ -62,10 +62,29 @@ jobs:
       - name: Generate assets (icon + presplash + weather icons)
         run: python create_assets.py
 
-      - name: Build debug APK
+      - name: Build release APK
         run: |
           set -o pipefail
-          buildozer -v android debug 2>&1 | tee build.log
+          buildozer -v android release 2>&1 | tee build.log
+
+      - name: Sign APK
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_B64" | base64 -d > weatherapp.jks
+          UNSIGNED=$(ls bin/*-release-unsigned.apk | head -1)
+          SIGNED="${UNSIGNED//-release-unsigned/-release}"
+          apksigner sign \
+            --ks weatherapp.jks \
+            --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass "pass:$KS_PASS" \
+            --key-pass "pass:$KEY_PASS" \
+            --out "$SIGNED" \
+            "$UNSIGNED"
+          rm weatherapp.jks
 
       - name: Upload build log
         if: always()
@@ -89,6 +108,6 @@ jobs:
 
             Install: download the APK, transfer to your Android device, and open it.
             Enable "Install from unknown sources" if prompted.
-          files: bin/*.apk
+          files: bin/*-release.apk
           prerelease: true
           make_latest: true
