@@ -1,6 +1,14 @@
 # Release Notes — WeatherApp
 
 ---
+## v1.3.1 — Signed release APK for app store distribution
+*2026-06-28*
+
+### Changed
+- CI now builds a signed release APK (was debug). Keystore stored as GitHub Secret; `apksigner` signs before publishing to GitHub Releases. APK is now accepted by Google Play and third-party stores.
+
+---
+
 
 ## v1.3.0 — One continuous screen: full-page animated sky, frosted-glass cards
 *2026-06-18*
