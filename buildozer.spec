@@ -14,7 +14,7 @@ orientation     = portrait
 fullscreen      = 0
 
 android.minapi      = 24
-android.targetapi   = 34
+android.targetapi   = 35
 # NDK 25b for Kivy. NDK 28c breaks Python 3.11's grp module (Android Bionic removed
 # setgrent/getgrent/endgrent in NDK 28c; NDK 25b still has them).
 # pygame projects use NDK 28c (SIMD fix); Kivy projects need NDK 25b + p4a.source_dir.
