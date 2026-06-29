@@ -74,7 +74,8 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASS: ${{ secrets.KEY_PASSWORD }}
         run: |
-          printf '%s' "$KEYSTORE_B64" | tr -d '\n\r ' | base64 -d > weatherbird.jks
+          echo "Keystore secret length: $(printf '%s' "$KEYSTORE_B64" | wc -c)"
+          printf '%s' "$KEYSTORE_B64" | tr -d '\n\r ' | openssl base64 -d -A -out weatherbird.jks
           UNSIGNED=$(ls bin/*-release-unsigned.apk | head -1)
           SIGNED="${UNSIGNED//-release-unsigned/-release}"
           apksigner sign \
