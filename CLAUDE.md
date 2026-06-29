@@ -58,7 +58,7 @@ Version lives in one place: `buildozer.spec` (`version = X.Y.Z`) and the top of
 - **Entry point:** `main.py`
 - **Test runner:** pytest (run with `pytest tests/ -v`)
 - **Android target:** API 34 / min API 24 / NDK **25b** / arm64-v8a
-- **Package name:** `org.kakoritz.weatherapp`
+- **Package name:** `org.kakoritz.weatherbird`
 - **GitHub repo:** `git@github.com:kakoritz/weather.git`
 - **p4a:** commit `3762c88c` at `~/.p4a-py311/` (NEVER update this checkout)
 - **Version:** `1.3.0` (in `buildozer.spec` AND `main.py` — must match)

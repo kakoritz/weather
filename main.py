@@ -1,7 +1,7 @@
-"""WeatherApp — iOS-faithful Android weather app.
+"""WeatherBird — iOS-faithful Android weather app.
 Built with Python / Kivy 2.3.0 / KivyMD 1.2.0.
 """
-__version__ = '1.3.0'
+__version__ = '1.4.0'
 
 import os
 import sys
@@ -11,7 +11,7 @@ import traceback
 def _write_crash(exc, path=None):
     try:
         if path is None:
-            path = '/sdcard/weatherapp_crash.log'
+            path = '/sdcard/weatherbird_crash.log'
         with open(path, 'w') as f:
             traceback.print_exception(type(exc), exc, exc.__traceback__, file=f)
             f.write('\nPython: ' + sys.version + '\n')
@@ -57,7 +57,7 @@ except Exception as _import_exc:
 
 
 class WeatherApp(MDApp):
-    title = 'Weather'
+    title = 'WeatherBird'
 
     def build(self):
         # Theme
