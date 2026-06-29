@@ -20,10 +20,10 @@ source ~/.buildozer-env/bin/activate
 buildozer android debug
 
 # 2. Install
-adb install -r bin/weatherapp-*.apk
+adb install -r bin/weatherbird-*.apk
 
 # 3. Launch
-adb shell am start -n org.kakoritz.weatherapp/org.kivy.android.PythonActivity
+adb shell am start -n org.kakoritz.weatherbird/org.kivy.android.PythonActivity
 ```
 
 One-liner (Makefile target):
@@ -39,11 +39,11 @@ make qa       # build + install + run full device QA suite
 | Item | Value |
 |------|-------|
 | Entry point | `main.py` |
-| Package | `org.kakoritz.weatherapp` |
+| Package | `org.kakoritz.weatherbird` |
 | Activity | `org.kivy.android.PythonActivity` |
 | Version | `main.py:__version__` + `buildozer.spec:version` (must match) |
 | Build dir | `/home/kakoritz/.weatherapp-build` (local disk — NOT NAS) |
-| APK output | `bin/weatherapp-{version}-arm64-v8a-debug.apk` |
+| APK output | `bin/weatherbird-{version}-arm64-v8a-debug.apk` |
 | Python | 3.11.13 (pinned via `p4a.source_dir`) |
 | NDK | 25b (`android.ndk = 25b`) |
 | p4a commit | `3762c88c` at `~/.p4a-py311` |
@@ -170,7 +170,7 @@ is actually correct before reporting a test as passed.
 
 ```bash
 # App PID
-PID=$(adb shell pidof org.kakoritz.weatherapp | tr -d '\r')
+PID=$(adb shell pidof org.kakoritz.weatherbird | tr -d '\r')
 
 # Python output only (most useful)
 adb logcat -d --pid=$PID | grep "I python" | tail -50
@@ -179,7 +179,7 @@ adb logcat -d --pid=$PID | grep "I python" | tail -50
 adb logcat -d --pid=$PID | grep "MENU\|WEATHER\|ERROR" | tail -20
 
 # Crash log on device
-adb pull /sdcard/weatherapp_crash.log /tmp/
+adb pull /sdcard/weatherbird_crash.log /tmp/
 ```
 
 ---

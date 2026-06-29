@@ -52,7 +52,7 @@ except ImportError:
 # ── Phone layout constants (1080x2400 @ 420dpi) ──────────────────────────────
 # All positions as fractions of screen width/height for resolution independence.
 
-PKG = 'org.kakoritz.weatherapp'
+PKG = 'org.kakoritz.weatherbird'
 ACTIVITY = f'{PKG}/org.kivy.android.PythonActivity'
 DATA_DIR = f'/data/user/0/{PKG}/files'
 

@@ -48,6 +48,16 @@ class DailyForecast:
 
 
 @dataclass
+class WeatherAlert:
+    event: str          # "Special Weather Statement", "Tornado Warning", etc.
+    headline: str       # full NWS-generated headline (kept for the detail modal)
+    description: str    # alert body text, truncated to a sane length
+    severity: str        # NWS CAP enum: Extreme | Severe | Moderate | Minor | Unknown
+    sent: str = ''        # ISO datetime — used to pick the newest of a reissued alert
+    expires: str = ''     # ISO datetime, for display
+
+
+@dataclass
 class AirQualityData:
     us_aqi: int
     pm2_5: float
@@ -94,7 +104,7 @@ class WeatherData:
     hourly: list = field(default_factory=list)     # list[HourlyEntry]
     daily: list = field(default_factory=list)      # list[DailyForecast]
     air_quality: Optional[AirQualityData] = None
-    alerts: list = field(default_factory=list)     # list[str] — active weather alerts
+    alerts: list = field(default_factory=list)     # list[WeatherAlert]
 
     def to_dict(self) -> dict:
         import dataclasses
@@ -116,6 +126,15 @@ class WeatherData:
             for df in d.get('daily', [])
         ]
         aq = AirQualityData(**d['air_quality']) if d.get('air_quality') else None
+        # Handles old cache where alerts was list[str] (pre-WeatherAlert) by
+        # wrapping each string as a minimal alert rather than crashing.
+        alerts = []
+        for a in d.get('alerts', []):
+            if isinstance(a, dict):
+                alerts.append(WeatherAlert(**a))
+            else:
+                alerts.append(WeatherAlert(event='Weather Alert', headline=str(a),
+                                            description='', severity='Unknown'))
         return cls(
             location_zip=d['location_zip'],
             fetched_at=d['fetched_at'],
@@ -123,7 +142,7 @@ class WeatherData:
             hourly=hourly,
             daily=daily,
             air_quality=aq,
-            alerts=d.get('alerts', []),
+            alerts=alerts,
         )
 
     def today_hourly(self) -> list:

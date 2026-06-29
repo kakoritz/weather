@@ -85,6 +85,39 @@ locally instead (see `get_moon_phase()` in `wmo_codes.py`).
 **Why:** Free, no API key, US only. Returns active watches/warnings/advisories. Non-US
 locations return a 404 or empty features array — handled gracefully. Max 3 alerts shown.
 
+**Severity drives the banner color, not a single fixed red (added 2026-06-21).**
+Side-by-side testing against iOS Weather for Matthews, NC surfaced a real bug: NWS's
+`severity` field (CAP enum: `Extreme`/`Severe`/`Moderate`/`Minor`/`Unknown`) was being
+discarded entirely — every alert rendered in the same bold red banner regardless of
+actual urgency. A "Moderate" fire-danger Special Weather Statement looked visually
+identical to what a Tornado Warning would, which is exactly why two fire-danger
+statements next to a "Mainly Clear, sunny" current-conditions view looked like a
+contradiction (it wasn't — fire risk and sky condition are orthogonal). Severity now
+maps to color (deep red → amber → muted yellow), and the alert's `event` name is shown
+prominently instead of the wordy auto-generated headline, so the *type* of hazard is
+legible at a glance. See `_ALERT_SEVERITY_COLORS` in `detail_cards.py`.
+
+**Dedup heuristic: same `event` name → keep only the most recently `sent`.** NWS
+reissues an updated version of an ongoing advisory every few hours while the prior one
+is still technically "active" until its own expiry — confirmed on the live API for
+Matthews, NC (`curl api.weather.gov/alerts/active?point=...`): two "Special Weather
+Statement" entries, same fire-danger situation, issued 1:44 AM and 9:56 AM, both still
+unexpired. Without dedup this reads as a software bug (duplicate rows), not a real
+re-issuance. Tradeoff: a rare second, genuinely *distinct* alert sharing the same
+generic NWS event category would be hidden too — accepted for now since the common
+case (reissued same-topic update) is far more frequent and far more visibly broken.
+
+**We are not switching weather data providers.** The same comparison also showed
+Open-Meteo's current condition ("Mainly Clear") and today's H/L (92°/74°) disagreeing
+noticeably with iOS Weather's numbers for the same place and time. Verified directly
+against Open-Meteo's API (not a code bug — our app faithfully displays what the API
+returns) — this is genuine model disagreement between Open-Meteo's default model and
+Apple WeatherKit's blended sources, most visible during fast-changing convective
+weather. Closing this gap would mean a different data provider, almost all of which
+require an API key or paid plan, conflicting with Core Design Principle #1 (no API
+keys, builds on a fresh clone with zero secrets). Documented here so this doesn't get
+re-investigated as a bug every time someone compares side-by-side with another app.
+
 ### Temperature Map: Windy.com Embed
 **URL:** `https://embed.windy.com/embed2.html?lat=...&overlay=temp`
 **Why:** Free interactive temperature map, no API key for the embed. Opens in a native
@@ -227,10 +260,12 @@ hero text sits), giving it more contrast headroom than a flat light panel would.
 | Daily day | `sp(18)` | Regular |
 | Daily temp | `sp(18)` | Bold |
 
-### Card inventory (WeatherDetailWidget, scrolling inside the details panel)
+### Card inventory (WeatherDetailWidget, scrolling on the full-screen animated sky)
 
 Full-width cards (top of scroll):
-1. **Alert Banner** — amber/red NWS alert rows (shown only when active alerts present)
+1. **Alert Banner** — NWS alert rows, color-coded by severity (deep red Extreme/Severe
+   → amber Moderate → muted yellow Minor), event type shown, tap for full description.
+   Same-event reissues deduped to the most recent. Shown only when active alerts present.
 2. **Hourly** — horizontal ScrollView; `NOW` + 24h; condition icon + temp per slot; summary header
 3. **10-Day Forecast** — vertical list; day name, icon, precip%, temperature range bar
 4. **Air Quality** — US AQI value, category, color scale bar, "See More" → detail modal
@@ -251,19 +286,34 @@ feedback was that it didn't add useful information over the hourly strip + daily
 precip%; removed UI, model (`NowcastEntry`), and the `minutely_15` API params entirely
 rather than leaving an unused fetch in place.
 
-### Layout architecture (v1.1.0)
+### Layout architecture (v1.3.0 — one continuous screen)
+
+v1.2.0 used a "two-zone" layout: a separate hero card (its own rounded-rect mask,
+animated background, particles) above a separate solid-color details card. v1.3.0
+removes both card frames entirely so the screen reads as one continuous surface,
+matching actual iOS Weather rather than a segregated-sections approximation of it:
 
 ```
-WeatherDetailWidget (FloatLayout, black background)
-  └── BoxLayout (vertical, padding=[dp(12), dp(12), dp(12), dp(80)])
-       ├── Hero card (FloatLayout, stencil-clip dp(18) radius, animated bg)
-       ├── Widget (spacer dp(8))
-       └── Details card (BoxLayout, blue #1A2947, stencil-clip dp(18) radius)
+WeatherDetailWidget (FloatLayout)
+  canvas.before: full-screen condition gradient texture (_draw_bg)
+  ├── WeatherOverlay (full-screen, density=2.2x — particle counts were tuned
+  │    for the old ~250dp hero, scaled up for full-screen coverage)
+  ├── Scrim (Widget, 0.25 alpha black — keeps white text legible over bright
+  │    daytime gradients without hiding the sky/particles)
+  └── BoxLayout (vertical, padding=[0, dp(8), 0, dp(80)])
+       ├── Hero (FloatLayout, NO canvas — just floating text: city/temp/condition/H:L)
+       └── Details (BoxLayout, NO canvas — pure layout container)
             └── ScrollView
-                 └── All data cards listed above
+                 └── All data cards listed above, each its own frosted-glass card
 ```
 
-The dp(80) bottom padding gives clearance for the dp(52) nav bar + breathing room.
+Every individual stat card (not the outer containers) now carries its own
+translucent glass background — `rgba(0.05, 0.08, 0.16, 0.40)` with a
+`rgba(1, 1, 1, 0.22)` frosted-edge border — so the animated sky and particles are
+visible *through* the cards, not just behind a hero strip. All card text is white
+(reverting the v1.2.0 dark-on-light-card theme, which no longer applies since
+there's no light card to be dark-on-light against). The dp(80) bottom padding still
+gives clearance for the dp(52) nav bar.
 
 ---
 

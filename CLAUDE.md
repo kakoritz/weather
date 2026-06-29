@@ -58,10 +58,10 @@ Version lives in one place: `buildozer.spec` (`version = X.Y.Z`) and the top of
 - **Entry point:** `main.py`
 - **Test runner:** pytest (run with `pytest tests/ -v`)
 - **Android target:** API 34 / min API 24 / NDK **25b** / arm64-v8a
-- **Package name:** `org.kakoritz.weatherapp`
+- **Package name:** `org.kakoritz.weatherbird`
 - **GitHub repo:** `git@github.com:kakoritz/weather.git`
 - **p4a:** commit `3762c88c` at `~/.p4a-py311/` (NEVER update this checkout)
-- **Version:** `1.2.0` (in `buildozer.spec` AND `main.py` — must match)
+- **Version:** `1.3.0` (in `buildozer.spec` AND `main.py` — must match)
 
 ---
 
@@ -73,9 +73,14 @@ The app is a `MDApp` with a `ScreenManager` (NoTransition) containing two screen
 accessed via bottom-bar icon). There is no separate AddLocationScreen — the search bar
 is built into the list screen.
 
-`WeatherDetailWidget` uses a floating card layout: pure-black master background,
-hero `FloatLayout` floating with dp(12) margins and animated weather background, deep
-blue details `BoxLayout` below containing the ScrollView with all data cards.
+`WeatherDetailWidget` is one continuous screen (v1.3.0+): the condition gradient +
+particle overlay (`weather_overlay.py`) span the *entire* widget via `canvas.before`,
+not just a hero strip. The hero `FloatLayout` and the details `BoxLayout` below it are
+both fully transparent — no background, no border — they're pure layout containers
+floating text/cards on the shared full-screen sky. Individual stat cards (hourly,
+daily, AQ, etc.) each carry their own translucent frosted-glass background so the sky
+is visible through them. See DESIGN.md's "Layout architecture" section for the full
+widget tree.
 
 Weather data is fetched in background threads and delivered to the UI via
 `Clock.schedule_once(callback, 0)`. All data is cached as JSON in `user_data_dir`.
@@ -100,7 +105,7 @@ src/
     geocoding.py              ← Nominatim zip-to-location lookup
   models/
     location.py               ← Location dataclass (zip, city, state, lat, lon)
-    weather.py                ← WeatherData, HourlyEntry, DailyForecast dataclasses
+    weather.py                ← WeatherData, HourlyEntry, DailyForecast, WeatherAlert dataclasses
   storage/
     manager.py                ← JSON-based location list + weather cache persistence
   screens/
@@ -164,6 +169,20 @@ tests/
 | 151–200 | Unhealthy | `#FF0000` |
 | 201–300 | Very Unhealthy | `#8F3F97` |
 | 301+ | Hazardous | `#7E0023` |
+
+### NWS alert severity → banner color (`detail_cards.py`)
+
+| Severity (NWS CAP enum) | Color |
+|---|---|
+| `Extreme` | `rgba(0.75, 0.10, 0.08, 0.95)` — deep red |
+| `Severe` | `rgba(0.80, 0.25, 0.08, 0.95)` — red-orange |
+| `Moderate` | `rgba(0.80, 0.55, 0.10, 0.95)` — amber |
+| `Minor` | `rgba(0.62, 0.58, 0.20, 0.90)` — muted yellow |
+| `Unknown` / unmapped | `rgba(0.35, 0.38, 0.45, 0.90)` — neutral slate |
+
+NWS alert dedup: when the same `event` name appears twice (NWS reissues updated
+versions of an ongoing advisory every few hours), only the one with the latest
+`sent` timestamp is kept. See `_fetch_nws_alerts()` in `src/api/weather.py`.
 
 ### Weather cache TTL
 

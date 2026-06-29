@@ -7,8 +7,11 @@ import requests
 
 from src.models.weather import (
     AirQualityData, CurrentConditions, DailyForecast,
-    HourlyEntry, WeatherData,
+    HourlyEntry, WeatherData, WeatherAlert,
 )
+
+# NWS CAP severity ranking — higher shows first / sorts ahead
+_SEVERITY_RANK = {'Extreme': 4, 'Severe': 3, 'Moderate': 2, 'Minor': 1, 'Unknown': 0}
 
 _FORECAST_URL = 'https://api.open-meteo.com/v1/forecast'
 _AQ_URL = 'https://air-quality-api.open-meteo.com/v1/air-quality'
@@ -118,26 +121,53 @@ def _parse_air_quality(json: dict) -> Optional[AirQualityData]:
 
 
 def _fetch_nws_alerts(lat: float, lon: float) -> list:
-    """Active NWS weather alerts for a US location. Returns [] outside US or on error."""
+    """Active NWS weather alerts for a US location. Returns [] outside US or on error.
+
+    NWS frequently reissues an updated version of the same advisory (e.g. a
+    "Special Weather Statement" reissued every few hours for an ongoing
+    situation) while the older one is still technically "active" until its
+    own expiry. Without deduping, two near-identical banners look like a
+    rendering bug rather than the same real alert being refreshed. Dedup by
+    `event` name, keeping only the most recently `sent` one — this trades a
+    small risk (a rare second, genuinely distinct alert sharing the same
+    generic event category gets hidden) for fixing the much more common case.
+    """
     try:
         resp = requests.get(
             _NWS_URL,
             params={'point': f'{lat:.4f},{lon:.4f}'},
             headers={
-                'User-Agent': 'kakoritz-WeatherApp/1.1 (adam@adamscottspiker.org)',
+                'User-Agent': 'kakoritz-WeatherApp/1.3 (adam@adamscottspiker.org)',
                 'Accept': 'application/geo+json',
             },
             timeout=5,
         )
         if not resp.ok:
             return []
-        alerts = []
-        for f in resp.json().get('features', [])[:3]:
+
+        by_event: dict = {}
+        for f in resp.json().get('features', []):
             props = f.get('properties', {})
-            headline = props.get('headline') or props.get('event', '')
-            if headline:
-                alerts.append(str(headline)[:100])
-        return alerts
+            event = props.get('event') or 'Weather Alert'
+            sent = props.get('sent', '')
+            existing = by_event.get(event)
+            if existing is not None and existing.sent >= sent:
+                continue
+            by_event[event] = WeatherAlert(
+                event=event,
+                headline=props.get('headline') or event,
+                description=(props.get('description') or '')[:280],
+                severity=props.get('severity', 'Unknown'),
+                sent=sent,
+                expires=props.get('expires', ''),
+            )
+
+        alerts = sorted(
+            by_event.values(),
+            key=lambda a: _SEVERITY_RANK.get(a.severity, 0),
+            reverse=True,
+        )
+        return alerts[:3]
     except Exception:
         return []
 

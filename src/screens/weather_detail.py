@@ -17,7 +17,7 @@ WeatherDetailWidget (one per location):
 from datetime import datetime
 
 from kivy.clock import Clock
-from kivy.graphics import Color, Ellipse, Rectangle, RoundedRectangle, StencilPush, StencilUse, StencilUnUse, StencilPop
+from kivy.graphics import Color, Ellipse, Rectangle, RoundedRectangle
 from kivy.lang import Builder
 from kivy.uix.carousel import Carousel as _KivyCarousel
 from kivy.metrics import dp, sp
@@ -92,12 +92,18 @@ class WeatherDetailWidget(FloatLayout):
         if self._weather is not None:
             self.update_weather(self._weather)
 
-    def _draw_bg(self):
-        """Pure black master background — floating cards sit on top of this."""
+    def _draw_bg(self, code: int = 0):
+        """Full-screen condition gradient — now the background for the WHOLE page,
+        not just the hero. Hero and the details container are both fully
+        transparent; this gradient (plus the particle overlay added in _build)
+        is the only thing anything floats on, mimicking iOS Weather's single
+        continuous animated background instead of segregated card sections."""
         self.canvas.before.clear()
+        top_rgba, bottom_rgba = get_gradients(code)
+        tex = _make_gradient_texture(top_rgba, bottom_rgba)
         with self.canvas.before:
-            Color(0, 0, 0, 1)
-            self._bg_rect = Rectangle(pos=self.pos, size=self.size)
+            Color(1, 1, 1, 1)
+            self._bg_rect = Rectangle(texture=tex, pos=self.pos, size=self.size)
         self.bind(pos=self._update_bg, size=self._update_bg)
 
     def _update_bg(self, *_):
@@ -158,15 +164,42 @@ class WeatherDetailWidget(FloatLayout):
 
     def _build(self, *_):
         w = self._weather
+        code = w.current.code if w else 0
+        night = is_night()
 
-        # Pure black master background — cards float on top
-        self._draw_bg()
+        # Full-screen condition gradient — the only background for the whole page
+        self._draw_bg(code)
 
-        # Outer stack: padding creates the "floating card" margins around both cards
-        # [left, top, right, bottom] — bottom=dp(80) clears the nav bar
-        _M = dp(12)
+        # Full-screen particle overlay (rain/snow/sun/stars/etc) sits directly on
+        # the gradient, behind everything else. Density bumped up since this now
+        # spans the entire screen instead of the old ~250dp hero strip — the
+        # particle counts in weather_overlay.py were tuned for that smaller area.
+        ov_type = overlay_for_night(get_condition(code), night) if w else 'none'
+        if ov_type != 'none':
+            self.add_widget(WeatherOverlay(
+                overlay_type=ov_type, density=2.2,
+                size_hint=(1, 1), pos_hint={'x': 0, 'y': 0},
+            ))
+
+        # Subtle full-screen scrim so white text stays legible over bright skies
+        # (the 'clear' day gradient's top color is very light) without hiding the
+        # sky/particles the way the old hero-only overlay (0.42 alpha) would if
+        # stretched across the whole screen.
+        scrim = Widget(size_hint=(1, 1), pos_hint={'x': 0, 'y': 0})
+        with scrim.canvas:
+            Color(0, 0, 0, 0.25)
+            _scrim_rect = Rectangle(pos=scrim.pos, size=scrim.size)
+        scrim.bind(
+            pos=lambda w, v, r=_scrim_rect: setattr(r, 'pos', v),
+            size=lambda w, v, r=_scrim_rect: setattr(r, 'size', v),
+        )
+        self.add_widget(scrim)
+
+        # Outer stack — no left/right margin now: there's no card edge to inset
+        # from anymore, each glass card below has its own padding=[dp(14), 0]
+        # via add_card(). Bottom padding still clears the nav bar.
         stack = BoxLayout(orientation='vertical', size_hint=(1, 1),
-                          padding=[_M, _M, _M, dp(80)], spacing=dp(8))
+                          padding=[0, dp(8), 0, dp(80)], spacing=dp(8))
 
         if w is None:
             self._add_loading_state(stack)
@@ -176,27 +209,11 @@ class WeatherDetailWidget(FloatLayout):
         self.add_widget(stack)
 
     def _add_loading_state(self, stack):
-        """Floating hero placeholder + floating blue details placeholder."""
+        """Floating hero text placeholder — no card chrome, sits on the global sky
+        (drawn by _build() before this is called) like every other state now."""
         HERO_H = dp(240)
-        RADIUS = dp(18)
 
-        # ── Hero placeholder (rounded, dark) ──────────────────────────
         hero = FloatLayout(size_hint=(1, None), height=HERO_H)
-        with hero.canvas.before:
-            StencilPush()
-            Color(1, 1, 1, 1)
-            _hm = RoundedRectangle(pos=hero.pos, size=hero.size, radius=[RADIUS])
-            StencilUse()
-            Color(0.10, 0.14, 0.22, 1)
-            _hbg = Rectangle(pos=hero.pos, size=hero.size)
-        hero.bind(
-            pos=lambda w, v, a=_hm, b=_hbg: (setattr(a, 'pos', v), setattr(b, 'pos', v)),
-            size=lambda w, v, a=_hm, b=_hbg: (setattr(a, 'size', v), setattr(b, 'size', v)),
-        )
-        with hero.canvas.after:
-            StencilUnUse()
-            StencilPop()
-
         tl = BoxLayout(orientation='vertical', size_hint=(1, 1),
                        pos_hint={'x': 0, 'y': 0}, padding=[dp(16), dp(16)], spacing=dp(4))
         for txt, sz, alpha in [
@@ -212,23 +229,9 @@ class WeatherDetailWidget(FloatLayout):
         hero.add_widget(tl)
         stack.add_widget(hero)
 
-        # ── Details placeholder (rounded, blue) ───────────────────────
-        details = BoxLayout(orientation='vertical', size_hint=(1, 1))
-        with details.canvas.before:
-            StencilPush()
-            Color(1, 1, 1, 1)
-            _dm = RoundedRectangle(pos=details.pos, size=details.size, radius=[RADIUS])
-            StencilUse()
-            Color(0.70, 0.83, 0.95, 1)
-            _dbg = Rectangle(pos=details.pos, size=details.size)
-        details.bind(
-            pos=lambda w, v, a=_dm, b=_dbg: (setattr(a, 'pos', v), setattr(b, 'pos', v)),
-            size=lambda w, v, a=_dm, b=_dbg: (setattr(a, 'size', v), setattr(b, 'size', v)),
-        )
-        with details.canvas.after:
-            StencilUnUse()
-            StencilPop()
-        stack.add_widget(details)
+        # Space where the stat cards will appear once data loads — no placeholder
+        # card chrome anymore, the sky just continues underneath.
+        stack.add_widget(BoxLayout(size_hint=(1, 1)))
 
     def _add_weather_content(self, stack, w: WeatherData):
         from kivy.uix.image import Image as KivyImage
@@ -237,57 +240,11 @@ class WeatherDetailWidget(FloatLayout):
         night = is_night()
         HERO_H = dp(260) if night else dp(240)   # -20% from original dp(320/300)
 
-        # ── Hero card — rounded all 4 corners, floating on black background ──
+        # ── Hero — just floating text now. Background gradient, scrim, and
+        # particle overlay are all drawn once for the whole screen in _build(),
+        # not per-hero — this is what makes it read as one continuous page
+        # instead of segregated card sections. ──
         hero = FloatLayout(size_hint=(1, None), height=HERO_H)
-        with hero.canvas.before:
-            StencilPush()
-            Color(1, 1, 1, 1)
-            _hero_mask = RoundedRectangle(pos=hero.pos, size=hero.size,
-                                          radius=[dp(18)])
-            StencilUse()
-        hero.bind(
-            pos=lambda w, v, r=_hero_mask: setattr(r, 'pos', v),
-            size=lambda w, v, r=_hero_mask: setattr(r, 'size', v),
-        )
-        with hero.canvas.after:
-            StencilUnUse()
-            StencilPop()
-
-        # Gradient background — light blue at top fading to a deeper blue at the
-        # bottom, matching the lightened details card below it. Replaces the old
-        # photo background, which read as too dark regardless of condition.
-        top_rgba, bottom_rgba = get_gradients(code)
-        _grad_tex = _make_gradient_texture(top_rgba, bottom_rgba)
-        _grad_widget = Widget(size_hint=(1, 1), pos_hint={'x': 0, 'y': 0})
-        with _grad_widget.canvas:
-            Color(1, 1, 1, 1)
-            _grad_rect = Rectangle(texture=_grad_tex, pos=_grad_widget.pos, size=_grad_widget.size)
-        _grad_widget.bind(
-            pos=lambda w, v, r=_grad_rect: setattr(r, 'pos', v),
-            size=lambda w, v, r=_grad_rect: setattr(r, 'size', v),
-        )
-        hero.add_widget(_grad_widget)
-
-        # Dark overlay (child widget, renders on top of photo, under text)
-        _ov = Widget(size_hint=(1, 1), pos_hint={'x': 0, 'y': 0})
-        with _ov.canvas:
-            Color(0, 0, 0, 0.42)
-            _ov_rect = Rectangle(pos=_ov.pos, size=_ov.size)
-        _ov.bind(
-            pos=lambda w, v, r=_ov_rect: setattr(r, 'pos', v),
-            size=lambda w, v, r=_ov_rect: setattr(r, 'size', v),
-        )
-        hero.add_widget(_ov)
-
-        # Weather particle overlay — between dark overlay and text
-        ov_type = overlay_for_night(get_condition(code), night)
-        if ov_type != 'none':
-            wx_overlay = WeatherOverlay(
-                overlay_type=ov_type,
-                size_hint=(1, 1),
-                pos_hint={'x': 0, 'y': 0},
-            )
-            hero.add_widget(wx_overlay)
 
         # Text layer — topmost child
         text_layer = BoxLayout(
@@ -434,23 +391,11 @@ class WeatherDetailWidget(FloatLayout):
         hero.add_widget(text_layer)
         stack.add_widget(hero)
 
-        # ── Details card: deep blue, rounded all 4 corners, fills remaining space ──
-        RADIUS = dp(18)
+        # ── Details container — pure layout now, no card chrome. The screen-wide
+        # gradient + particles from _build() show straight through; only the
+        # individual stat cards inside (hourly/daily/AQ/etc) have their own
+        # frosted-glass backgrounds now. ──
         details = BoxLayout(orientation='vertical', size_hint=(1, 1))
-        with details.canvas.before:
-            StencilPush()
-            Color(1, 1, 1, 1)
-            _det_mask = RoundedRectangle(pos=details.pos, size=details.size, radius=[RADIUS])
-            StencilUse()
-            Color(0.70, 0.83, 0.95, 1)   # lighter iOS-style blue
-            _det_bg = Rectangle(pos=details.pos, size=details.size)
-        details.bind(
-            pos=lambda w, v, a=_det_mask, b=_det_bg: (setattr(a, 'pos', v), setattr(b, 'pos', v)),
-            size=lambda w, v, a=_det_mask, b=_det_bg: (setattr(a, 'size', v), setattr(b, 'size', v)),
-        )
-        with details.canvas.after:
-            StencilUnUse()
-            StencilPop()
         stack.add_widget(details)
 
         # ── Scrollable content inside the blue details card ────────────
@@ -493,7 +438,7 @@ class WeatherDetailWidget(FloatLayout):
         add_card(DetailCardsGrid(data=w, units=self._units))
 
         attrib = Label(text='Data provided by Open-Meteo API · openstreetmap.org',
-                       font_size=sp(10), color=(0.07, 0.14, 0.26, 0.45),
+                       font_size=sp(10), color=(1, 1, 1, 0.45),
                        size_hint_y=None, height=dp(18),
                        halign='center', valign='middle')
         attrib.bind(size=attrib.setter('text_size'))

@@ -25,13 +25,13 @@ KV = """
     spacing: dp(8)
     canvas.before:
         Color:
-            rgba: 0, 0, 0, 0.16
+            rgba: 0.05, 0.09, 0.16, 0.40
         RoundedRectangle:
             pos: self.pos
             size: self.size
             radius: [dp(16)]
         Color:
-            rgba: 0.07, 0.14, 0.26, 0.12
+            rgba: 1, 1, 1, 0.22
         Line:
             rounded_rectangle: [self.x, self.y, self.width, self.height, dp(16)]
             width: 1
@@ -74,14 +74,14 @@ class HourlySlot(BoxLayout):
         # Highlight for NOW
         if self._is_now:
             with self.canvas.before:
-                Color(0.07, 0.14, 0.26, 0.15)
+                Color(1, 1, 1, 0.15)
                 RoundedRectangle(pos=self.pos, size=self.size, radius=[dp(10)])
 
         # Time label — larger, bold, white
         time_lbl = Label(
             text=time_str,
             font_size=sp(15),
-            color=(0.07, 0.14, 0.26, 1),
+            color=(1, 1, 1, 1),
             bold=True,
             size_hint_y=None,
             height=dp(20),
@@ -101,7 +101,7 @@ class HourlySlot(BoxLayout):
             pp_lbl = Label(
                 text=f'{entry.precip_prob}%',
                 font_size=sp(12),
-                color=(0.05, 0.30, 0.70, 1.0),
+                color=(0.55, 0.80, 1.0, 1.0),
                 size_hint_y=None,
                 height=dp(16),
             )
@@ -114,7 +114,7 @@ class HourlySlot(BoxLayout):
             text=fmt_temp(entry.temp, self._units),
             font_size=sp(18),
             bold=True,
-            color=(0.07, 0.14, 0.26, 1),
+            color=(1, 1, 1, 1),
             size_hint_y=None,
             height=dp(24),
         )
@@ -218,7 +218,7 @@ class HourlyForecastCard(BoxLayout):
                 text=summary,
                 font_size=sp(14),
                 bold=False,
-                color=(0.07, 0.14, 0.26, 0.85),
+                color=(1, 1, 1, 0.85),
                 size_hint=(1, None),
                 height=dp(32),
                 halign='left',

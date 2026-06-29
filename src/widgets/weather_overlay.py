@@ -47,9 +47,10 @@ def overlay_for_night(condition_name: str, night: bool) -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class WeatherOverlay(Widget):
-    def __init__(self, overlay_type: str = 'none', **kwargs):
+    def __init__(self, overlay_type: str = 'none', density: float = 1.0, **kwargs):
         super().__init__(**kwargs)
         self._type = overlay_type
+        self._density = density
         self._t = 0.0
         self._particles: list = []
         self._clock_ev = None
@@ -58,7 +59,7 @@ class WeatherOverlay(Widget):
     def _on_resize(self, *_):
         if self.width < 10:
             return
-        self._particles = _make_particles(self._type, self.width, self.height)
+        self._particles = _make_particles(self._type, self.width, self.height, self._density)
         if self._clock_ev is None and self._type != 'none':
             self._clock_ev = Clock.schedule_interval(self._tick, 1 / _FPS)
 
@@ -80,7 +81,7 @@ class WeatherOverlay(Widget):
 
 # ─── particle factories ───────────────────────────────────────────────────────
 
-def _make_particles(ptype, w, h):
+def _make_particles(ptype, w, h, density=1.0):
     if ptype in ('rain', 'drizzle', 'heavy_rain', 'thunderstorm'):
         specs = {
             'drizzle':     (28,  (260, 350), (dp(8),  dp(12))),
@@ -89,6 +90,7 @@ def _make_particles(ptype, w, h):
             'thunderstorm':(80,  (490, 620), (dp(16), dp(23))),
         }
         n, (lo_s, hi_s), (lo_l, hi_l) = specs[ptype]
+        n = max(1, round(n * density))
         return [{'x': random.uniform(0, w), 'y': random.uniform(0, h),
                  'speed': random.uniform(lo_s, hi_s),
                  'length': random.uniform(lo_l, hi_l),
@@ -96,13 +98,14 @@ def _make_particles(ptype, w, h):
                 for _ in range(n)]
 
     if ptype == 'snow':
+        n = max(1, round(55 * density))
         return [{'x': random.uniform(0, w), 'y': random.uniform(0, h),
                  'speed': random.uniform(28, 62),
                  'r': random.uniform(dp(1.5), dp(3.0)),
                  'alpha': random.uniform(0.25, 0.65),
                  'phase': random.uniform(0, math.pi * 2),
                  'sway': random.uniform(dp(16), dp(36))}
-                for _ in range(55)]
+                for _ in range(n)]
 
     if ptype in ('sun', 'sun_light'):
         # Sun position: upper-right area so it doesn't cover city/temp text
@@ -123,22 +126,24 @@ def _make_particles(ptype, w, h):
         return [{'type': 'sun', 'cx': sun_x, 'cy': sun_y}] + clouds
 
     if ptype == 'stars':
+        n = max(1, round(48 * density))
         return [{'x': random.uniform(0.03, 0.97) * w,
                  'y': random.uniform(0.04, 0.96) * h,
                  'r': random.uniform(dp(0.7), dp(1.8)),
                  'phase': random.uniform(0, math.pi * 2),
                  'period': random.uniform(1.6, 4.2)}
-                for _ in range(48)]
+                for _ in range(n)]
 
     if ptype == 'fog':
         # Radial mist halos — NOT horizontal bands
+        n = max(1, round(7 * density))
         return [{'x': random.uniform(0.1, 0.9) * w,
                  'y': random.uniform(0.1, 0.9) * h,
                  'r': random.uniform(dp(70), dp(130)),
                  'vx': random.uniform(-6, 6),
                  'vy': random.uniform(-4, 4),
                  'alpha': random.uniform(0.04, 0.09)}
-                for _ in range(7)]
+                for _ in range(n)]
 
     return []
 

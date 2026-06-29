@@ -1,8 +1,8 @@
 [app]
-title           = Weather
-package.name    = weatherapp
+title           = WeatherBird
+package.name    = weatherbird
 package.domain  = org.kakoritz
-version         = 1.2.0
+version         = 1.4.0
 
 source.dir      = .
 source.include_exts = py,png,jpg,jpeg,kv,atlas,json,ttf,otf
