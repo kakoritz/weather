@@ -57,7 +57,7 @@ Version lives in one place: `buildozer.spec` (`version = X.Y.Z`) and the top of
 - **Build dir:** `/home/kakoritz/.weatherapp-build` (NOT on NAS — local disk only)
 - **Entry point:** `main.py`
 - **Test runner:** pytest (run with `pytest tests/ -v`)
-- **Android target:** API 34 / min API 24 / NDK **25b** / arm64-v8a
+- **Android target:** API 35 / min API 24 / NDK **25b** / arm64-v8a
 - **Package name:** `org.kakoritz.weatherbird`
 - **GitHub repo:** `git@github.com:kakoritz/weather.git`
 - **p4a:** commit `3762c88c` at `~/.p4a-py311/` (NEVER update this checkout)
