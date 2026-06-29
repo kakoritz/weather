@@ -67,25 +67,25 @@ jobs:
           set -o pipefail
           buildozer -v android release 2>&1 | tee build.log
 
-      - name: Sign APK
+      - name: Sign AAB
         env:
           KEYSTORE_B64: ${{ secrets.KEYSTORE_BASE64 }}
           KS_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASS: ${{ secrets.KEY_PASSWORD }}
         run: |
-          echo "Keystore secret length: $(printf '%s' "$KEYSTORE_B64" | wc -c)"
-          printf '%s' "$KEYSTORE_B64" | tr -d '\n\r ' | openssl base64 -d -A -out weatherbird.jks
-          UNSIGNED=$(ls bin/*-release-unsigned.apk | head -1)
-          SIGNED="${UNSIGNED//-release-unsigned/-release}"
-          apksigner sign \
-            --ks weatherbird.jks \
-            --ks-key-alias "$KEY_ALIAS" \
-            --ks-pass "pass:$KS_PASS" \
-            --key-pass "pass:$KEY_PASS" \
-            --out "$SIGNED" \
-            "$UNSIGNED"
+          printf '%s' "$KEYSTORE_B64" | tr -d '\n\r ' | base64 -d > weatherbird.jks
+          AAB=$(ls bin/*.aab | head -1)
+          jarsigner -verbose \
+            -sigalg SHA256withRSA \
+            -digestalg SHA-256 \
+            -keystore weatherbird.jks \
+            -storepass "$KS_PASS" \
+            -keypass "$KEY_PASS" \
+            "$AAB" \
+            "$KEY_ALIAS"
           rm weatherbird.jks
+          echo "Signed: $AAB"
 
       - name: Upload build log
         if: always()
@@ -99,16 +99,15 @@ jobs:
         id: appver
         run: echo "version=$(grep '^version' buildozer.spec | sed 's/.*=\s*//' | tr -d ' \r')" >> "$GITHUB_OUTPUT"
 
-      - name: Publish APK to GitHub Release
+      - name: Publish AAB to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.appver.outputs.version }}
-          name: "WeatherApp v${{ steps.appver.outputs.version }}"
+          name: "WeatherBird v${{ steps.appver.outputs.version }}"
           body: |
             Built from `${{ github.ref_name }}` · commit `${{ github.sha }}`
 
-            Install: download the APK, transfer to your Android device, and open it.
-            Enable "Install from unknown sources" if prompted.
-          files: bin/*-release.apk
+            Upload `weatherbird-*.aab` to Google Play Console (Production → New release).
+          files: bin/*.aab
           prerelease: true
           make_latest: true
