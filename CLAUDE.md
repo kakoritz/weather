@@ -40,12 +40,18 @@ work on development branch
 
 | Bump | When |
 |---|---|
-| PATCH | Bug fix, invisible change, docs only |
+| PATCH | Bug fix, invisible change, docs only, **any build/CI change that requires a new Play Store upload** |
 | MINOR | Any user-visible addition or change |
 | MAJOR | New major system, breaking change |
 
-Version lives in one place: `buildozer.spec` (`version = X.Y.Z`) and the top of
-`main.py` (`__version__ = 'X.Y.Z'`). These must always match.
+**Play Store rule:** Every upload to Play Console needs a strictly higher version code
+than the previous one. Any change that produces a new AAB intended for Play Store —
+including targetapi bumps, signing fixes, CI changes — must include a PATCH bump in
+`buildozer.spec` and `main.py` before pushing to `main`.
+
+Version lives in two places (must always match):
+- `buildozer.spec` → `version = X.Y.Z`
+- `main.py` → `__version__ = 'X.Y.Z'`
 
 ---
 
