@@ -36,20 +36,21 @@ work on development branch
 | `CLAUDE_REVIEW.md` | New review entry for the version |
 | `CLAUDE.md` | Update if file map, constants, or protocol changed |
 
-**Version format:** `vMAJOR.MINOR.PATCH`
+**Version format:** `vMAJOR.MINOR.PP` where PP is zero-padded patch (01, 02 … 09, 10, 11 …)
+
+Examples: `1.4.01`, `1.4.09`, `1.4.10`
 
 | Bump | When |
 |---|---|
-| PATCH | Any change at all — bug fix, build config, CI, docs, targetapi, signing, invisible infra |
+| PATCH (PP) | Any change at all — bug fix, build config, CI, docs, targetapi, signing, invisible infra |
 | MINOR | Any user-visible addition or change |
 | MAJOR | New major system, breaking change |
 
-**Rule:** Every commit to `main` that changes anything — code, build config, CI, assets —
-gets a version bump. No exceptions. A change happened; the version reflects it.
+**Rule:** Every commit to `main` that changes anything gets a version bump. No exceptions.
 
 Version lives in two places (must always match):
-- `buildozer.spec` → `version = X.Y.Z`
-- `main.py` → `__version__ = 'X.Y.Z'`
+- `buildozer.spec` → `version = X.Y.PP`
+- `main.py` → `__version__ = 'X.Y.PP'`
 
 ---
 
@@ -65,7 +66,7 @@ Version lives in two places (must always match):
 - **Package name:** `org.kakoritz.weatherbird`
 - **GitHub repo:** `git@github.com:kakoritz/weather.git`
 - **p4a:** commit `3762c88c` at `~/.p4a-py311/` (NEVER update this checkout)
-- **Version:** `1.3.0` (in `buildozer.spec` AND `main.py` — must match)
+- **Version:** `1.4.03` (in `buildozer.spec` AND `main.py` — must match)
 
 ---
 

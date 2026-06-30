@@ -42,9 +42,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.buildozer
-          key: buildozer-kivy-py311-v4-${{ hashFiles('buildozer.spec', 'custom_recipes/**') }}
+          key: buildozer-kivy-py311-v5-${{ hashFiles('buildozer.spec', 'custom_recipes/**') }}
           restore-keys: |
-            buildozer-kivy-py311-v4-
+            buildozer-kivy-py311-v5-
 
       - name: Clone p4a pinned to Python 3.11.13 era (commit 3762c88c)
         run: |
@@ -63,6 +63,8 @@ jobs:
         run: python create_assets.py
 
       - name: Build release APK
+        env:
+          ANDROIDAPI: "35"
         run: |
           set -o pipefail
           buildozer -v android release 2>&1 | tee build.log
