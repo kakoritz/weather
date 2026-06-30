@@ -216,8 +216,9 @@ class _LocationCard(BoxLayout):
     def _content_up(self, w, touch):
         if not self._touch_start: return
         dx = abs(touch.x - self._touch_start[0])
+        dy = abs(touch.y - self._touch_start[1])
         self._touch_start = None
-        if dx < dp(10):
+        if dx < dp(10) and dy < dp(10):
             if self._scroll.scroll_x < 0.05:
                 self._on_tap(self._location)
             else:
@@ -406,12 +407,13 @@ class LocationListScreen(MDScreen):
         self._build_ui()
 
     def _build_ui(self):
-        self._root = FloatLayout()
+        # BoxLayout fills header+scroll without a hardcoded pos_hint fraction
+        self._root = BoxLayout(orientation='vertical', size_hint=(1, 1))
 
         # ── Fixed header bar ─────────────────────────────────────────
         self._header = BoxLayout(orientation='vertical', size_hint=(1, None),
                                   height=dp(130), padding=[dp(18), dp(10)],
-                                  spacing=dp(8), pos_hint={'top': 1})
+                                  spacing=dp(8))
         with self._header.canvas.before:
             Color(0.04, 0.05, 0.10, 1)
             _hbg = Rectangle(pos=self._header.pos, size=self._header.size)
@@ -466,8 +468,7 @@ class LocationListScreen(MDScreen):
 
         # ── Location cards scroll ─────────────────────────────────────
         scroll = ScrollView(do_scroll_y=True, do_scroll_x=False,
-                            bar_width=0, size_hint=(1, 1),
-                            pos_hint={'top': 0.72})
+                            bar_width=0, size_hint=(1, 1))
         cards_box = BoxLayout(orientation='vertical', size_hint_y=None,
                               spacing=dp(10),
                               padding=[dp(14), dp(8), dp(14), dp(80)])
@@ -484,7 +485,7 @@ class LocationListScreen(MDScreen):
         scroll.add_widget(cards_box)
         self._root.add_widget(scroll)
 
-        # Autocomplete overlay (floats over everything, starts hidden)
+        # Autocomplete overlay — added to Window directly when needed
         self._ac_box = BoxLayout(orientation='vertical', size_hint=(None, None),
                                   size=(0, 0), pos=(0, 0))
         with self._ac_box.canvas.before:
@@ -493,7 +494,6 @@ class LocationListScreen(MDScreen):
                                             size=self._ac_box.size, radius=[dp(10)])
         self._ac_box.bind(pos=lambda w, v, r=self._ac_bg: setattr(r, 'pos', v),
                           size=lambda w, v, r=self._ac_bg: setattr(r, 'size', v))
-        self._root.add_widget(self._ac_box)
 
         self.add_widget(self._root)
         self._debounce = None

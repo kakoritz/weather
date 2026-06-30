@@ -23,10 +23,11 @@ is 1:1; the stack is different.
 1. **No API keys.** Every data source must work with zero credentials. No secrets in repo,
    no keys to rotate, no rate limits from forgotten env vars. Builds and runs on a fresh clone.
 
-2. **Tap-arrow navigation (revised from original swipe-first plan).** Swipe between
-   locations was the original v1.0 intent but was fully disabled (`_WeatherCarousel.
-   on_touch_move` returns `False` unconditionally) in favor of explicit left/right arrow
-   buttons at the top of the hero. Bottom bar dots show position and are also tappable.
+2. **Full-page swipe navigation (re-enabled in v1.4.03).** Swipe between locations
+   works anywhere on the weather page — Kivy's native `Carousel` swipe is fully enabled.
+   Left/right arrow buttons at the top of the hero also navigate. The bottom nav bar
+   (map icon · dots · list icon) also accepts swipe gestures and dot taps.
+   The custom `_WeatherCarousel` that disabled all swipe (v1.0–v1.4.02) is removed.
 
 3. **Always-current data.** Weather is cached for 10 minutes then silently refreshed in a
    background thread. The user never sees a spinner if cached data exists.

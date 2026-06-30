@@ -464,6 +464,297 @@ def make_icon():
     print(f'Created {fg_path}')
 
 
+# ─── screenshot mockups ────────────────────────────────────────────────────────
+
+def _make_screenshot(W, H, label):
+    """Generate a convincing app screenshot mockup at any resolution."""
+
+    # ── sky gradient ──────────────────────────────────────────────────────────
+    sky = Image.new('RGB', (W, H))
+    sky_draw = ImageDraw.Draw(sky)
+    sky_stops = [
+        (0.00, (8,  48, 118)),
+        (0.30, (18, 86, 188)),
+        (0.58, (52, 142, 225)),
+        (0.80, (120, 195, 238)),
+        (1.00, (160, 215, 245)),
+    ]
+    SUN_CX = W // 2
+    SUN_CY = int(H * 0.26)
+    for y in range(H):
+        frac = y / H
+        r, g, b = _gradient_color(frac, sky_stops)
+        dy = abs(y - SUN_CY)
+        gt = max(0.0, 1.0 - dy / (H * 0.55)) ** 2.0
+        r = min(255, r + int(60 * gt))
+        g = min(255, g + int(38 * gt))
+        b = max(0,   b - int(22 * gt))
+        sky_draw.line([(0, y), (W, y)], fill=(r, g, b))
+
+    img = sky.convert('RGBA')
+
+    # ── sun ───────────────────────────────────────────────────────────────────
+    SR = int(W * 0.09)
+    for radius, alpha in [
+        (int(SR*3.2), 14), (int(SR*2.4), 28), (int(SR*1.8), 48),
+        (int(SR*1.3), 80), (SR, 125)
+    ]:
+        g = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+        gd = ImageDraw.Draw(g)
+        gd.ellipse([SUN_CX-radius, SUN_CY-radius, SUN_CX+radius, SUN_CY+radius],
+                   fill=(255, 225, 90, alpha))
+        g = g.filter(ImageFilter.GaussianBlur(radius=max(radius//5, 1)))
+        img = Image.alpha_composite(img, g)
+
+    sun = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    sd = ImageDraw.Draw(sun)
+    sd.ellipse([SUN_CX-SR, SUN_CY-SR, SUN_CX+SR, SUN_CY+SR],
+               fill=(255, 248, 140, 255))
+    sd.ellipse([SUN_CX-SR//2, SUN_CY-SR//2, SUN_CX+SR//2, SUN_CY+SR//2],
+               fill=(255, 255, 230, 255))
+    img = Image.alpha_composite(img, sun)
+
+    # ── bird ──────────────────────────────────────────────────────────────────
+    img = _draw_bird(img, SUN_CX, SUN_CY, span=int(SR * 2.2),
+                     color=(16, 28, 68, 250), shadow_color=(0, 0, 0, 70),
+                     shadow_blur=max(int(W * 0.006), 3))
+
+    img = img.convert('RGB')
+    draw = ImageDraw.Draw(img)
+
+    font_paths_bold = [
+        '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+        '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
+        '/usr/share/fonts/truetype/ubuntu/Ubuntu-B.ttf',
+    ]
+    font_paths_reg = [
+        '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+        '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
+        '/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf',
+    ]
+
+    def load_font(paths, size):
+        for p in paths:
+            try:
+                return ImageFont.truetype(p, max(size, 8))
+            except OSError:
+                continue
+        return ImageFont.load_default()
+
+    def centred(text, font, y, color, shadow=(0,0,0,160)):
+        bbox = draw.textbbox((0, 0), text, font=font)
+        x = (W - (bbox[2] - bbox[0])) // 2
+        draw.text((x+2, y+3), text, font=font, fill=shadow)
+        draw.text((x, y), text, font=font, fill=color)
+
+    base = int(W * 0.072)
+
+    # Location
+    centred('New York, NY', load_font(font_paths_reg, int(base * 0.55)),
+            y=int(H * 0.45), color=(220, 240, 255))
+
+    # Temperature
+    centred('72°F', load_font(font_paths_bold, int(base * 1.6)),
+            y=int(H * 0.49), color=(255, 255, 255))
+
+    # Condition
+    centred('Sunny', load_font(font_paths_reg, int(base * 0.52)),
+            y=int(H * 0.595), color=(200, 230, 255))
+
+    # ── frosted stat cards ────────────────────────────────────────────────────
+    card_y = int(H * 0.66)
+    card_h = int(H * 0.095)
+    card_w = int(W * 0.42)
+    gap    = int(W * 0.04)
+    card_x1 = (W - card_w * 2 - gap) // 2
+    card_x2 = card_x1 + card_w + gap
+    card_r  = int(card_h * 0.22)
+
+    for cx in (card_x1, card_x2):
+        card = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+        cd = ImageDraw.Draw(card)
+        cd.rounded_rectangle([cx, card_y, cx+card_w, card_y+card_h],
+                              radius=card_r, fill=(255, 255, 255, 38))
+        img = Image.alpha_composite(img.convert('RGBA'), card).convert('RGB')
+        draw = ImageDraw.Draw(img)
+
+    lf = load_font(font_paths_reg, int(base * 0.38))
+    draw.text((card_x1 + int(card_w*0.1), card_y + int(card_h*0.18)),
+              'Humidity', font=lf, fill=(180, 210, 255))
+    draw.text((card_x1 + int(card_w*0.1), card_y + int(card_h*0.54)),
+              '48%', font=load_font(font_paths_bold, int(base*0.52)),
+              fill=(255, 255, 255))
+
+    draw.text((card_x2 + int(card_w*0.1), card_y + int(card_h*0.18)),
+              'Wind', font=lf, fill=(180, 210, 255))
+    draw.text((card_x2 + int(card_w*0.1), card_y + int(card_h*0.54)),
+              '8 mph', font=load_font(font_paths_bold, int(base*0.52)),
+              fill=(255, 255, 255))
+
+    # ── second row of cards ───────────────────────────────────────────────────
+    card_y2 = card_y + card_h + int(H * 0.018)
+    for cx in (card_x1, card_x2):
+        card = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+        cd = ImageDraw.Draw(card)
+        cd.rounded_rectangle([cx, card_y2, cx+card_w, card_y2+card_h],
+                              radius=card_r, fill=(255, 255, 255, 38))
+        img = Image.alpha_composite(img.convert('RGBA'), card).convert('RGB')
+        draw = ImageDraw.Draw(img)
+
+    draw.text((card_x1 + int(card_w*0.1), card_y2 + int(card_h*0.18)),
+              'UV Index', font=lf, fill=(180, 210, 255))
+    draw.text((card_x1 + int(card_w*0.1), card_y2 + int(card_h*0.54)),
+              '6 — High', font=load_font(font_paths_bold, int(base*0.52)),
+              fill=(255, 255, 255))
+
+    draw.text((card_x2 + int(card_w*0.1), card_y2 + int(card_h*0.18)),
+              'Air Quality', font=lf, fill=(180, 210, 255))
+    draw.text((card_x2 + int(card_w*0.1), card_y2 + int(card_h*0.54)),
+              'Good', font=load_font(font_paths_bold, int(base*0.52)),
+              fill=(255, 255, 255))
+
+    # ── bottom label (device type) ────────────────────────────────────────────
+    lbl_font = load_font(font_paths_reg, int(base * 0.32))
+    draw.text((int(W*0.04), int(H*0.97) - int(base*0.36)),
+              f'WeatherBird — {label}', font=lbl_font, fill=(140, 170, 210))
+
+    return img
+
+
+def make_screenshots():
+    """Generate Play Store screenshot mockups for phone, 7-inch, and 10-inch."""
+    shots_dir = os.path.join(ASSETS_DIR, 'screenshots')
+    os.makedirs(shots_dir, exist_ok=True)
+
+    sizes = [
+        ('phone',    1080, 1920),
+        ('tablet_7', 1200, 1920),
+        ('tablet_10',1600, 2560),
+    ]
+
+    for label, W, H in sizes:
+        img = _make_screenshot(W, H, label)
+        path = os.path.join(shots_dir, f'screenshot_{label}.jpg')
+        img.save(path, 'JPEG', quality=96)
+        print(f'Created {path}')
+
+
+# ─── feature graphic ──────────────────────────────────────────────────────────
+
+def make_feature_graphic():
+    """1024×500 Play Store feature graphic — sky, sun, bird, WeatherBird text."""
+    W, H = 1024, 500
+
+    # ── sky gradient ──────────────────────────────────────────────────────────
+    sky = Image.new('RGB', (W, H))
+    sky_draw = ImageDraw.Draw(sky)
+
+    sky_stops = [
+        (0.00, (8,  48, 118)),
+        (0.40, (18, 86, 188)),
+        (0.75, (52, 142, 225)),
+        (1.00, (100, 180, 240)),
+    ]
+
+    SUN_CX, SUN_CY = 740, 260
+
+    for y in range(H):
+        frac = y / H
+        r, g, b = _gradient_color(frac, sky_stops)
+        dy = abs(y - SUN_CY)
+        glow_t = max(0.0, 1.0 - dy / 320) ** 2.0
+        r = min(255, r + int(60 * glow_t))
+        g = min(255, g + int(38 * glow_t))
+        b = max(0,   b - int(22 * glow_t))
+        sky_draw.line([(0, y), (W, y)], fill=(r, g, b))
+
+    img = sky.convert('RGBA')
+
+    # ── sun halo ──────────────────────────────────────────────────────────────
+    for radius, alpha in [(340, 16), (260, 30), (190, 50), (138, 82), (100, 125)]:
+        glow = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+        gd = ImageDraw.Draw(glow)
+        gd.ellipse([SUN_CX-radius, SUN_CY-radius, SUN_CX+radius, SUN_CY+radius],
+                   fill=(255, 225, 90, alpha))
+        glow = glow.filter(ImageFilter.GaussianBlur(radius=radius // 5))
+        img = Image.alpha_composite(img, glow)
+
+    # ── sun rays ──────────────────────────────────────────────────────────────
+    ray_layer = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    rd = ImageDraw.Draw(ray_layer)
+    for i in range(14):
+        angle = math.radians(i * (360 / 14) - 90)
+        al = angle - math.radians(5)
+        ar = angle + math.radians(5)
+        bx1 = SUN_CX + math.cos(al) * 100
+        by1 = SUN_CY + math.sin(al) * 100
+        bx2 = SUN_CX + math.cos(ar) * 100
+        by2 = SUN_CY + math.sin(ar) * 100
+        tx  = SUN_CX + math.cos(angle) * 310
+        ty  = SUN_CY + math.sin(angle) * 310
+        rd.polygon([(bx1, by1), (bx2, by2), (tx, ty)], fill=(255, 238, 140, 100))
+    ray_layer = ray_layer.filter(ImageFilter.GaussianBlur(radius=5))
+    img = Image.alpha_composite(img, ray_layer)
+
+    # ── sun disc ──────────────────────────────────────────────────────────────
+    sun = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    sd = ImageDraw.Draw(sun)
+    R = 96
+    sd.ellipse([SUN_CX-R-16, SUN_CY-R-16, SUN_CX+R+16, SUN_CY+R+16],
+               fill=(255, 230, 80, 200))
+    sd.ellipse([SUN_CX-R, SUN_CY-R, SUN_CX+R, SUN_CY+R],
+               fill=(255, 248, 140, 255))
+    sd.ellipse([SUN_CX-R//2, SUN_CY-R//2, SUN_CX+R//2, SUN_CY+R//2],
+               fill=(255, 255, 230, 255))
+    img = Image.alpha_composite(img, sun)
+
+    # ── bird ──────────────────────────────────────────────────────────────────
+    img = _draw_bird(
+        img, SUN_CX, SUN_CY, span=230,
+        color=(16, 28, 68, 250),
+        shadow_color=(0, 0, 0, 80),
+        shadow_blur=8,
+    )
+
+    # ── text ──────────────────────────────────────────────────────────────────
+    img = img.convert('RGB')
+    draw = ImageDraw.Draw(img)
+
+    font_paths = [
+        '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+        '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
+        '/usr/share/fonts/truetype/ubuntu/Ubuntu-B.ttf',
+    ]
+    font_paths_reg = [
+        '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+        '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
+        '/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf',
+    ]
+
+    def load_font(paths, size):
+        for p in paths:
+            try:
+                return ImageFont.truetype(p, size)
+            except OSError:
+                continue
+        return ImageFont.load_default()
+
+    font_main = load_font(font_paths, 96)
+    font_sub  = load_font(font_paths_reg, 36)
+
+    def draw_text(text, font, x, y, color, shadow_color=(0, 0, 0, 160)):
+        draw.text((x + 3, y + 4), text, font=font, fill=shadow_color)
+        draw.text((x, y), text, font=font, fill=color)
+
+    draw_text('WeatherBird', font_main, x=52, y=158, color=(255, 255, 255))
+    draw_text('even birds need a forecast', font_sub, x=56, y=284,
+              color=(190, 220, 255))
+
+    path = os.path.join(ASSETS_DIR, 'feature_graphic.jpg')
+    img.save(path, 'JPEG', quality=96)
+    print(f'Created {path}')
+
+
 # ─── gradient backgrounds ──────────────────────────────────────────────────────
 
 def generate_gradient_backgrounds():

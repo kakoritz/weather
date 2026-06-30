@@ -5,6 +5,29 @@ If everything scores 10/10, this document is useless.
 
 ---
 
+## v1.4.03 — Bug fixes: swipe, scroll gap, tap, bar colors
+*2026-06-29*
+
+### Overall rating: 8.5 / 10
+
+**As a weather app:** 8.5/10 — Several long-standing UX bugs fixed in one pass. Full-page
+swipe was the most noticeable missing feature (only the dot area worked before). The
+location list scroll gap made the screen look broken on first impression. The tap-on-scroll
+issue would cause random location jumps that were hard to reproduce in testing but
+infuriating in daily use.
+
+**Technical quality:** Good systematic approach — each fix addressed the actual root cause
+rather than masking it. The BoxLayout scroll fix is more robust than patching a hardcoded
+`pos_hint` fraction. The dot centering fix is minimal and correct.
+
+**Still missing (future work):**
+- Rain Forecasted card (Apple Weather reference shows a bar-chart rain timeline)
+- Precipitation map card (radar imagery)
+- Alert text sometimes wraps awkwardly in narrow slots
+- No gap analysis done for alerts+hourly spacing with real alert data on device
+
+---
+
 ## v1.3.0 — One continuous screen, frosted glass, planned not improvised
 *2026-06-18*
 

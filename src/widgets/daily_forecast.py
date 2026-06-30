@@ -173,10 +173,25 @@ class _TempRangeBar(Widget):
                 size=(w, bar_h),
                 radius=[bar_h / 2],
             )
-            # Colored portion
-            r1 = 0.22 + 0.78 * (self._min - self._gmin) / span  # cool → warm
-            r2 = 0.22 + 0.78 * (self._max - self._gmin) / span
-            Color(r1 * 0.5 + 0.3, 0.55, 1 - r1 * 0.6, 1.0)
+            # Colored portion — blue (cold) → yellow → orange → red (hot)
+            r1 = (self._min - self._gmin) / span
+            _stops = [
+                (0.0,  (0.27, 0.50, 0.90)),
+                (0.40, (0.95, 0.88, 0.20)),
+                (0.70, (0.95, 0.50, 0.10)),
+                (1.0,  (0.92, 0.15, 0.08)),
+            ]
+            rc, gc, bc = _stops[0][1]
+            for si in range(len(_stops) - 1):
+                t0, c0 = _stops[si]
+                t1, c1 = _stops[si + 1]
+                if r1 <= t1:
+                    t = (r1 - t0) / (t1 - t0)
+                    rc = c0[0] + t * (c1[0] - c0[0])
+                    gc = c0[1] + t * (c1[1] - c0[1])
+                    bc = c0[2] + t * (c1[2] - c0[2])
+                    break
+            Color(rc, gc, bc, 1.0)
             bar_w = max(dp(4), x_end - x_start)
             RoundedRectangle(
                 pos=(self.x + x_start, self.center_y - bar_h / 2),

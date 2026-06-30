@@ -66,7 +66,7 @@ Version lives in two places (must always match):
 - **Package name:** `org.kakoritz.weatherbird`
 - **GitHub repo:** `git@github.com:kakoritz/weather.git`
 - **p4a:** commit `3762c88c` at `~/.p4a-py311/` (NEVER update this checkout)
-- **Version:** `1.4.02` (in `buildozer.spec` AND `main.py` — must match)
+- **Version:** `1.4.03` (in `buildozer.spec` AND `main.py` — must match)
 
 ---
 
