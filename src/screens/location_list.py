@@ -34,7 +34,7 @@ from src.utils.wmo_codes import get_label, get_bg_path, is_night
 from src.utils.units import fmt_temp as _c_or_f
 
 _DEL_W = dp(80)
-_CARD_H = dp(110)
+_CARD_H = dp(152)
 _CARD_RADIUS = dp(18)
 
 KV = """
@@ -140,7 +140,7 @@ class _LocationCard(BoxLayout):
         # Text — proper BoxLayout for consistent alignment
         inner = BoxLayout(orientation='horizontal', size_hint=(1, 1),
                           pos_hint={'x': 0, 'y': 0},
-                          padding=[dp(14), dp(10), dp(10), dp(10)])
+                          padding=[dp(16), dp(14), dp(10), dp(12)])
 
         left = BoxLayout(orientation='vertical', size_hint=(1, 1), spacing=dp(1))
         city_lbl = Label(text=location.city, font_size=sp(22), bold=True,
@@ -156,26 +156,42 @@ class _LocationCard(BoxLayout):
         left.add_widget(time_lbl)
         left.add_widget(Widget(size_hint_y=1))
         if weather:
-            cond_lbl = Label(text=get_label(weather.current.code),
-                             font_size=sp(14), bold=False, color=(1, 1, 1, 0.90),
-                             size_hint_y=None, height=dp(20),
+            if weather.alerts:
+                alert = weather.alerts[0]
+                alert_row = BoxLayout(orientation='horizontal', size_hint_y=None,
+                                      height=dp(20), spacing=dp(4))
+                warn_lbl = Label(text='⚠', font_size=sp(12), color=(1, 0.82, 0.15, 1),
+                                 size_hint=(None, 1), width=dp(16),
+                                 halign='left', valign='middle')
+                alert_row.add_widget(warn_lbl)
+                atxt = Label(text=alert.event[:30], font_size=sp(13), bold=False,
+                             color=(1, 0.92, 0.35, 1), size_hint=(1, 1),
                              halign='left', valign='middle')
-            cond_lbl.bind(size=cond_lbl.setter('text_size'))
-            left.add_widget(cond_lbl)
+                atxt.bind(size=atxt.setter('text_size'))
+                alert_row.add_widget(atxt)
+                left.add_widget(alert_row)
+            else:
+                cond_lbl = Label(text=get_label(weather.current.code),
+                                 font_size=sp(14), bold=False, color=(1, 1, 1, 0.90),
+                                 size_hint_y=None, height=dp(20),
+                                 halign='left', valign='middle')
+                cond_lbl.bind(size=cond_lbl.setter('text_size'))
+                left.add_widget(cond_lbl)
         inner.add_widget(left)
         if weather:
             right = BoxLayout(orientation='vertical', size_hint=(None, 1),
-                              width=dp(88), spacing=dp(0))
+                              width=dp(110), spacing=dp(0))
             temp_lbl = Label(text=_c_or_f(weather.current.temp, units),
-                             font_size=sp(42), bold=False, color=(1, 1, 1, 1),
+                             font_size=sp(55), bold=False, color=(1, 1, 1, 1),
                              size_hint=(1, 1), halign='right', valign='middle')
             temp_lbl.bind(size=temp_lbl.setter('text_size'))
             right.add_widget(temp_lbl)
+            h = _c_or_f(weather.today_high() or 0, units)
+            l = _c_or_f(weather.today_low() or 0, units)
             hl_lbl = Label(
-                text=f'H:{_c_or_f(weather.today_high() or 0, units)}\n'
-                     f'L:{_c_or_f(weather.today_low() or 0, units)}',
+                text=f'H:{h}  L:{l}',
                 font_size=sp(12), bold=False, color=(1, 1, 1, 0.80),
-                size_hint=(1, None), height=dp(32),
+                size_hint=(1, None), height=dp(20),
                 halign='right', valign='middle')
             hl_lbl.bind(size=hl_lbl.setter('text_size'))
             right.add_widget(hl_lbl)

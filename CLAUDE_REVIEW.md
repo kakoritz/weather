@@ -5,6 +5,26 @@ If everything scores 10/10, this document is useless.
 
 ---
 
+## v1.4.04 — Visual redesign: iOS-faithful cards and location list
+*2026-06-30*
+
+### Overall rating: 8.8 / 10
+
+**As a weather app:** 8.8/10 — Location cards now substantially closer to the Apple Weather
+reference. Bigger temperature numbers read correctly at a glance. H/L on one line is cleaner.
+The blue frosted glass cards on the detail page are much more faithful to iOS than the
+near-black panels were — the sky gradient is now visible through the cards as intended.
+
+**Technical quality:** All changes were additive, no regressions expected. Alert badge on
+location cards adds useful info. Card color change is a single constant in KV strings across
+three files. The `sys.executable` SSL patch in p4a was the key infrastructure breakthrough
+that unblocked local builds entirely.
+
+**Known gaps:** Rain Forecasted bar-chart card (photo 5) not yet implemented — requires
+Open-Meteo `minutely_15` data not currently fetched by the API client.
+
+---
+
 ## v1.4.03 — Bug fixes: swipe, scroll gap, tap, bar colors
 *2026-06-29*
 

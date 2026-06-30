@@ -5,7 +5,7 @@ sky behind the entire screen, frosted-glass stat cards floating on top of it, a 
 moon at night, live NWS alerts — built entirely in Python with **zero API keys, zero
 paid plans, zero secrets to manage.**
 
-**Current version: v1.4.03**
+**Current version: v1.4.04**
 
 ---
 

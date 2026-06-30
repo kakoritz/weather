@@ -1,7 +1,7 @@
 """WeatherBird — iOS-faithful Android weather app.
 Built with Python / Kivy 2.3.0 / KivyMD 1.2.0.
 """
-__version__ = '1.4.03'
+__version__ = '1.4.04'
 
 import os
 import sys

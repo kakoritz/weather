@@ -1,6 +1,22 @@
 # Release Notes — WeatherApp
 
 ---
+## v1.4.04 — Visual redesign: iOS-faithful card styles, location cards, alert badges
+*2026-06-30*
+
+### Changed
+- **Location cards redesigned.** Height increased to 152dp (was 110dp), temperature font
+  enlarged to sp(55) (was sp(42)), right column wider to accommodate larger number. H/L now
+  displayed on one line (`H:XX°  L:XX°`) instead of two lines.
+- **Alert badge on location cards.** When the location has an active weather alert, the
+  condition label is replaced by a ⚠ icon + alert event name in amber text, matching
+  Apple Weather's location list design.
+- **Card backgrounds match iOS frosted glass.** All stat cards (hourly, 10-day, detail
+  grid) now use `rgba(0.06, 0.22, 0.55, 0.52)` — a visible blue-tinted frosted glass
+  instead of near-black (0.05, 0.09, 0.16). Cards now read as blue translucent panels
+  floating on the sky gradient background.
+
+---
 ## v1.4.03 — UI bug fixes: swipe, scroll gap, tap, temp card, bar colors
 *2026-06-29*
 

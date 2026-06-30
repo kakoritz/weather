@@ -309,12 +309,14 @@ WeatherDetailWidget (FloatLayout)
 ```
 
 Every individual stat card (not the outer containers) now carries its own
-translucent glass background — `rgba(0.05, 0.08, 0.16, 0.40)` with a
-`rgba(1, 1, 1, 0.22)` frosted-edge border — so the animated sky and particles are
-visible *through* the cards, not just behind a hero strip. All card text is white
-(reverting the v1.2.0 dark-on-light-card theme, which no longer applies since
-there's no light card to be dark-on-light against). The dp(80) bottom padding still
+translucent glass background — `rgba(0.06, 0.22, 0.55, 0.52)` (blue-tinted frosted
+glass, updated v1.4.04 from near-black 0.05,0.09,0.16) with a `rgba(1, 1, 1, 0.18)`
+frosted-edge border — so the animated sky and particles are visible *through* the
+cards, not just behind a hero strip. All card text is white. The dp(80) bottom padding
 gives clearance for the dp(52) nav bar.
+
+Location list cards: `152dp` tall (updated v1.4.04 from 110dp), temperature font
+`sp(55)`, H/L on one line. Alert event name shown in amber when alert is active.
 
 ---
 

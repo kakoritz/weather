@@ -2,7 +2,7 @@
 title           = WeatherBird
 package.name    = weatherbird
 package.domain  = org.kakoritz
-version         = 1.4.03
+version         = 1.4.04
 
 source.dir      = .
 source.include_exts = py,png,jpg,jpeg,kv,atlas,json,ttf,otf

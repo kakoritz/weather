@@ -25,13 +25,13 @@ KV = """
     spacing: dp(8)
     canvas.before:
         Color:
-            rgba: 0.05, 0.09, 0.16, 0.40
+            rgba: 0.06, 0.22, 0.55, 0.52
         RoundedRectangle:
             pos: self.pos
             size: self.size
             radius: [dp(16)]
         Color:
-            rgba: 1, 1, 1, 0.22
+            rgba: 1, 1, 1, 0.18
         Line:
             rounded_rectangle: [self.x, self.y, self.width, self.height, dp(16)]
             width: 1
