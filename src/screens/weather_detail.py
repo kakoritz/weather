@@ -19,7 +19,6 @@ from datetime import datetime
 from kivy.clock import Clock
 from kivy.graphics import Color, Ellipse, Rectangle, RoundedRectangle
 from kivy.lang import Builder
-from kivy.uix.carousel import Carousel as _KivyCarousel
 from kivy.metrics import dp, sp
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.carousel import Carousel
@@ -65,10 +64,6 @@ KV = """
 Builder.load_string(KV)
 
 
-class _WeatherCarousel(_KivyCarousel):
-    """Swipe completely disabled — navigation is tap-arrow only."""
-    def on_touch_move(self, touch):
-        return False   # No swipe at all; arrows handle navigation
 
 
 class WeatherDetailWidget(FloatLayout):
@@ -502,8 +497,9 @@ class WeatherDetailWidget(FloatLayout):
         return card
 
 
-class _BottomNavBar(Widget):
-    """Bottom nav bar: swipe left/right here to navigate, dots show position."""
+class _BottomNavBar(FloatLayout):
+    """Bottom nav bar: map icon LEFT, page dots CENTER, list icon RIGHT.
+    Swipe or tap anywhere in the bar (not on icons) to navigate between slides."""
     _swipe_tx = None
 
     def __init__(self, carousel: Carousel, on_list: callable, **kwargs):
@@ -522,8 +518,33 @@ class _BottomNavBar(Widget):
         self.bind(pos=self._redraw_bg, size=self._redraw_bg)
         carousel.bind(current_slide=self._redraw_dots)
 
+        map_btn = MDIconButton(
+            icon='map-marker-outline',
+            theme_icon_color='Custom',
+            icon_color=(1, 1, 1, 0.70),
+            icon_size=dp(22),
+            size_hint=(None, None),
+            size=(dp(48), dp(48)),
+            pos_hint={'x': 0.01, 'center_y': 0.5},
+        )
+        self.add_widget(map_btn)
+
+        list_btn = MDIconButton(
+            icon='format-list-bulleted',
+            theme_icon_color='Custom',
+            icon_color=(1, 1, 1, 0.70),
+            icon_size=dp(22),
+            size_hint=(None, None),
+            size=(dp(48), dp(48)),
+            pos_hint={'right': 0.99, 'center_y': 0.5},
+            on_release=lambda *_: on_list(),
+        )
+        self.add_widget(list_btn)
+
     # ── Swipe/tap in the nav bar navigates ────────────────────────
     def on_touch_down(self, touch):
+        if super().on_touch_down(touch):
+            return True  # icon button handled it
         if self.collide_point(*touch.pos):
             self._swipe_tx = touch.x
             touch.grab(self)
@@ -538,7 +559,6 @@ class _BottomNavBar(Widget):
         dx = touch.x - self._swipe_tx
         self._swipe_tx = None
         if abs(dx) < dp(20):
-            # Tap on a dot — navigate to that dot's index
             try:
                 idx = self._carousel.slides.index(self._carousel.current_slide)
             except Exception:
@@ -549,7 +569,6 @@ class _BottomNavBar(Widget):
             spacing = dp(14)
             total_w = (self._num_pages - 1) * spacing
             start_x = cx - total_w / 2
-            # Find which dot was tapped
             for i in range(self._num_pages):
                 dot_x = start_x + i * spacing
                 if abs(touch.x - dot_x) < dp(14):
@@ -569,10 +588,9 @@ class _BottomNavBar(Widget):
 
     def set_num_pages(self, n: int):
         self._num_pages = n
-        self._redraw_dots()
+        Clock.schedule_once(lambda dt: self._redraw_dots(), 0)
 
     def _redraw_dots(self, *_):
-        # Clear the dots group atomically — no per-instruction remove calls
         self._dots_group.clear()
 
         if self._num_pages < 2:
@@ -625,11 +643,12 @@ class WeatherCarouselScreen(MDScreen):
     def _build_ui(self):
         root = FloatLayout(size_hint=(1, 1))
 
-        self._carousel = _WeatherCarousel(
+        self._carousel = Carousel(
             direction='right',
             loop=False,
             size_hint=(1, 1),
             scroll_distance=dp(20),
+            scroll_timeout=200,
         )
 
         for loc in self._locations:
@@ -671,29 +690,16 @@ class WeatherCarouselScreen(MDScreen):
             self._carousel.bind(current_slide=self._update_arrows)
             self._update_arrows()
 
-        # ── Bottom nav bar ────────────────────────────────────────────
+        # ── Bottom nav bar (map icon | dots | list icon) ──────────────
         self._nav_bar = _BottomNavBar(
             carousel=self._carousel,
             on_list=self._go_to_list,
-            pos_hint={'bottom': 1},
+            pos_hint={'x': 0, 'y': 0},
             size_hint=(1, None),
             height=dp(52),
         )
-        self._nav_bar.set_num_pages(n)
         root.add_widget(self._nav_bar)
-
-        # List icon (bottom right, above nav bar)
-        list_btn = MDIconButton(
-            icon='format-list-bulleted',
-            theme_icon_color='Custom',
-            icon_color=(1, 1, 1, 0.80),
-            icon_size=dp(22),
-            size_hint=(None, None),
-            size=(dp(44), dp(44)),
-            pos_hint={'right': 0.97, 'y': 0.005},
-            on_release=self._go_to_list,
-        )
-        root.add_widget(list_btn)
+        self._nav_bar.set_num_pages(n)
 
         self.add_widget(root)
 

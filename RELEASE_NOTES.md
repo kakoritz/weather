@@ -1,6 +1,38 @@
 # Release Notes — WeatherApp
 
 ---
+## v1.4.03 — UI bug fixes: swipe, scroll gap, tap, temp card, bar colors
+*2026-06-29*
+
+### Fixed
+- **Swipe re-enabled on full weather page.** Previously swipe was disabled on the entire
+  Carousel and only worked in the bottom nav-bar dot area. Removed the custom
+  `_WeatherCarousel` class that overrode `on_touch_move` to return `False`; native Kivy
+  `Carousel` swipe now works anywhere on the weather screen.
+- **Footer dots centered on first load.** `set_num_pages()` deferred the canvas draw
+  one frame (via `Clock.schedule_once`) so dots are drawn after the nav bar has been laid
+  out and `center_x` is correct. Previously dots appeared off-center on first load.
+- **Large gap under search bar eliminated.** `LocationListScreen` root changed from
+  `FloatLayout` with a hardcoded `pos_hint={'top': 0.72}` scroll to a `BoxLayout`
+  (header + scroll), so the scroll fills exactly the space below the header regardless of
+  screen height.
+- **Location card tap fires on vertical scroll.** `_content_up` now tracks both `dx`
+  and `dy`; tap only fires if `dx < dp(10) AND dy < dp(10)`. Previously only `dx` was
+  checked, so scrolling vertically through cards triggered unintended navigation.
+- **Temperature card opens only on "See More" tap.** Removed `on_touch_up` binding from
+  the preview widget; only the `build_sections()` See-More footer triggers `_open_map()`.
+  Card header now uses `build_sections('map-outline', 'Temperature', ...)` matching the
+  Air Quality card style.
+- **10-day forecast bar colors.** Changed from a flat blue-ish formula to a proper
+  temperature colormap: blue (cold) → yellow → orange → red (hot), matching Apple Weather
+  reference screenshots.
+
+### Changed
+- **Bottom nav bar** now shows map icon (left) · page dots (center) · list icon (right),
+  matching the reference layout. The nav bar is now a `FloatLayout` containing the two
+  icon buttons; the separate floating list button on the main screen is removed.
+
+---
 ## v1.3.1 — Signed release APK for app store distribution
 *2026-06-28*
 

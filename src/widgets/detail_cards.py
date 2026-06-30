@@ -699,26 +699,30 @@ class TemperatureMapCard(_BaseCard):
         self._city = city
         self._temp = temp
 
-        self.add_widget(_card_title('Temperature'))
-
-        # Map preview (gradient placeholder — tappable)
-        preview = Widget(size_hint=(1, 1))
+        # Gradient preview widget (visual only — tap handled by See More footer)
+        preview = Widget(size_hint=(None, None), size=(dp(130), dp(52)))
         with preview.canvas:
-            # Temperature gradient: blue (cold) → yellow → red (hot)
-            for i, col in enumerate([(0.25,0.55,0.90), (0.35,0.75,0.50),
-                                      (0.90,0.80,0.20), (0.95,0.40,0.15)]):
-                Color(*col, 0.6)
-                RoundedRectangle(pos=(0, 0), size=(1, 1), radius=[dp(6)])
-        preview.bind(pos=lambda w, v: None, size=lambda w, v: None)
-        preview.add_widget(Label(
-            text=f'{city}\n{fmt_temp(temp, units)}',
-            font_size=sp(13), color=(1, 1, 1, 0.70),
-            halign='center', valign='middle', size_hint=(1, 1),
-        ))
-        preview.bind(on_touch_up=lambda w, t: self._open_map()
-                     if w.collide_point(*t.pos) else None)
-        self.add_widget(preview)
-        self.add_widget(_see_more_footer(self._open_map))
+            for i, (col, xf) in enumerate([
+                ((0.25, 0.55, 0.90), 0.00),
+                ((0.35, 0.75, 0.50), 0.33),
+                ((0.90, 0.80, 0.20), 0.66),
+                ((0.95, 0.40, 0.15), 1.00),
+            ]):
+                Color(*col, 0.75)
+                Rectangle(pos=(0, 0), size=(1, 1))
+
+        city_lbl = Label(
+            text=f'{city}  {fmt_temp(temp, units)}',
+            font_size=sp(14), color=(1, 1, 1, 0.85),
+            halign='center', valign='middle',
+            size_hint=(None, None), size=(dp(160), dp(28)),
+        )
+
+        self.build_sections(
+            'map-outline', 'Temperature',
+            [city_lbl],
+            see_more_fn=self._open_map,
+        )
 
     def _open_map(self):
         url = (
