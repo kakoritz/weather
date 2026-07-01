@@ -885,13 +885,15 @@ class AlertBanner(BoxLayout):
 class DetailCardsSection(BoxLayout):
     """Full-width cards (AQ, Temp Map) followed by 2-col grid of smaller cards."""
 
-    def __init__(self, data: WeatherData, units: str = 'F', **kwargs):
+    def __init__(self, data: WeatherData, units: str = 'F',
+                 lat: float = 0.0, lon: float = 0.0, **kwargs):
         super().__init__(orientation='vertical', size_hint_y=None,
                          spacing=dp(10), **kwargs)
         self.bind(minimum_height=self.setter('height'))
-        self._build(data, units)
+        self._build(data, units, lat, lon)
 
-    def _build(self, data: WeatherData, units: str = 'F'):
+    def _build(self, data: WeatherData, units: str = 'F',
+               lat: float = 0.0, lon: float = 0.0):
         c = data.current
         today = data.daily[0] if data.daily else None
 
@@ -901,8 +903,8 @@ class DetailCardsSection(BoxLayout):
                                            size_hint=(1, None), height=dp(165)))
 
         self.add_widget(TemperatureMapCard(
-            lat=getattr(data, '_lat', 35.37),
-            lon=getattr(data, '_lon', -81.96),
+            lat=lat or 35.37,
+            lon=lon or -81.96,
             city=data.location_zip,
             temp=c.temp,
             units=units,
@@ -940,6 +942,69 @@ class DetailCardsSection(BoxLayout):
         grid.add_widget(PressureCard(pressure_hpa=c.pressure, trend=pressure_trend_label))
 
         self.add_widget(grid)
+
+        # ── "Open in Maps" link ────────────────────────────────────────
+        if lat and lon:
+            self.add_widget(_open_in_maps_row(lat, lon))
+
+
+def _open_in_maps_row(lat: float, lon: float) -> BoxLayout:
+    from kivy.uix.boxlayout import BoxLayout as _BL
+    row = _BL(orientation='horizontal', size_hint=(1, None), height=dp(40),
+              padding=[dp(4), 0])
+
+    lbl = Label(
+        text='Open in Maps', font_size=sp(14), color=(1, 1, 1, 0.60),
+        size_hint=(1, 1), halign='left', valign='middle',
+    )
+    lbl.bind(size=lbl.setter('text_size'))
+    row.add_widget(lbl)
+
+    from kivymd.uix.button import MDIconButton
+    row.add_widget(MDIconButton(
+        icon='arrow-top-right', theme_icon_color='Custom',
+        icon_color=(1, 1, 1, 0.50), icon_size=dp(18),
+        size_hint=(None, 1), width=dp(36),
+    ))
+
+    _start = [None]
+
+    def _dn(w, t):
+        if w.collide_point(*t.pos):
+            _start[0] = (t.x, t.y)
+
+    def _up(w, t):
+        if _start[0] is None:
+            return
+        dx = abs(t.x - _start[0][0])
+        dy = abs(t.y - _start[0][1])
+        _start[0] = None
+        if dx < dp(8) and dy < dp(8) and w.collide_point(*t.pos):
+            _launch_maps(lat, lon)
+
+    row.bind(on_touch_down=_dn, on_touch_up=_up)
+    return row
+
+
+def _launch_maps(lat: float, lon: float):
+    try:
+        from jnius import autoclass  # type: ignore
+        from android.runnable import run_on_ui_thread  # type: ignore
+
+        Intent = autoclass('android.content.Intent')
+        Uri = autoclass('android.net.Uri')
+        PythonActivity = autoclass('org.kivy.android.PythonActivity')
+
+        @run_on_ui_thread
+        def _open():
+            uri = Uri.parse(f'geo:{lat},{lon}?q={lat},{lon}')
+            intent = Intent(Intent.ACTION_VIEW, uri)
+            PythonActivity.mActivity.startActivity(intent)
+
+        _open()
+    except Exception:
+        import webbrowser
+        webbrowser.open(f'https://www.google.com/maps?q={lat},{lon}')
 
 
 # Keep old name as alias so weather_detail.py import still works

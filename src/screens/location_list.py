@@ -83,6 +83,16 @@ def search_cities(query: str, limit: int = 5) -> list:
 
 # ── Location card ─────────────────────────────────────────────────────────────
 
+def _rain_forecast_text(weather) -> str | None:
+    """Returns a rain-forecast string if precip expected soon, else None."""
+    hours = weather.next_24_hours()
+    if hours and hours[0].precip_prob >= 40:
+        return 'Expect rain in the next hour'
+    if len(hours) > 1 and hours[1].precip_prob >= 40:
+        return 'Expect rain soon'
+    return None
+
+
 class _LocationCard(BoxLayout):
     def __init__(self, location: Location, weather: WeatherData | None,
                  on_tap, on_delete, units: str = 'F', **kwargs):
@@ -171,7 +181,8 @@ class _LocationCard(BoxLayout):
                 alert_row.add_widget(atxt)
                 left.add_widget(alert_row)
             else:
-                cond_lbl = Label(text=get_label(weather.current.code),
+                bottom_text = _rain_forecast_text(weather) or get_label(weather.current.code)
+                cond_lbl = Label(text=bottom_text,
                                  font_size=sp(14), bold=False, color=(1, 1, 1, 0.90),
                                  size_hint_y=None, height=dp(20),
                                  halign='left', valign='middle')

@@ -1,6 +1,34 @@
 # Release Notes — WeatherApp
 
 ---
+## v1.4.05 — Rain Forecasted card, Precipitation map, Open in Maps, rain forecast on list cards
+*2026-07-01*
+
+### Added
+- **Rain Forecasted card.** Appears above the hourly strip when precipitation is
+  expected within the next 60 minutes. Shows a bold "Rain Forecasted" title,
+  "Rain starting in X min" subtitle, and a dense 60-bar chart interpolated from
+  Open-Meteo `minutely_15` data (15-min intervals → per-minute visual resolution).
+  Uses the same blue frosted-glass card background as all other stat cards.
+- **Precipitation map card.** Full-width card between the hourly strip and 10-day
+  forecast. Shows a CartoDB dark base tile with a live RainViewer radar overlay
+  (fetched async; tile URL computed from lat/lon). City pin with current temperature
+  centered on the map. "See More ›" opens the Windy.com precipitation layer in a
+  native Android WebView modal.
+- **"Expect rain in the next hour" on location list cards.** When the next hourly
+  slot has ≥40% precipitation probability, the condition label is replaced with
+  "Expect rain in the next hour" (or "Expect rain soon" for the second hour).
+  Alert badge still takes priority over rain text.
+- **"Open in Maps" link.** Tappable row below the detail cards grid — opens
+  `geo:{lat},{lon}` intent on Android (any installed map app), falls back to
+  Google Maps in browser on desktop.
+
+### Changed
+- `DetailCardsGrid` now receives explicit `lat`/`lon` from `WeatherDetailWidget`
+  (was using a hardcoded 35.37/-81.96 default for the temperature map).
+- Open-Meteo forecast request now includes `minutely_15=precipitation,precipitation_probability`.
+
+---
 ## v1.4.04 — Visual redesign: iOS-faithful card styles, location cards, alert badges
 *2026-06-30*
 

@@ -48,6 +48,13 @@ class DailyForecast:
 
 
 @dataclass
+class MinutelyEntry:
+    time: str          # ISO datetime string "2025-06-01T14:15"
+    precip: float      # precipitation mm
+    precip_prob: int   # precipitation probability 0-100
+
+
+@dataclass
 class WeatherAlert:
     event: str          # "Special Weather Statement", "Tornado Warning", etc.
     headline: str       # full NWS-generated headline (kept for the detail modal)
@@ -105,6 +112,7 @@ class WeatherData:
     daily: list = field(default_factory=list)      # list[DailyForecast]
     air_quality: Optional[AirQualityData] = None
     alerts: list = field(default_factory=list)     # list[WeatherAlert]
+    minutely: list = field(default_factory=list)   # list[MinutelyEntry] — 15-min intervals
 
     def to_dict(self) -> dict:
         import dataclasses
@@ -135,6 +143,7 @@ class WeatherData:
             else:
                 alerts.append(WeatherAlert(event='Weather Alert', headline=str(a),
                                             description='', severity='Unknown'))
+        minutely = [MinutelyEntry(**m) for m in d.get('minutely', [])]
         return cls(
             location_zip=d['location_zip'],
             fetched_at=d['fetched_at'],
@@ -143,6 +152,7 @@ class WeatherData:
             daily=daily,
             air_quality=aq,
             alerts=alerts,
+            minutely=minutely,
         )
 
     def today_hourly(self) -> list:

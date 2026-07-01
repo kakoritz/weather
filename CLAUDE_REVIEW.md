@@ -5,6 +5,39 @@ If everything scores 10/10, this document is useless.
 
 ---
 
+## v1.4.05 — Rain Forecasted card, Precipitation map, Open in Maps
+*2026-07-01*
+
+### Overall rating: 9.0 / 10
+
+**As a weather app:** 9.0/10 — The two biggest missing features from the iOS reference
+photos are now implemented. The Rain Forecasted card with its dense per-minute bar chart
+is the most visually accurate match to the iOS Weather reference achieved so far. The
+precipitation map card brings the radar visualization that was completely absent before.
+"Expect rain in the next hour" on location list cards makes the list screen genuinely
+useful at a glance (previously it only showed generic condition labels or alert badges).
+"Open in Maps" closes a gap that had been a known placeholder since v1.0.0.
+
+**Technical quality:** Clean separation — two new self-contained widget files, minimal
+changes to existing files. The minutely_15 data flows from API → model → widget without
+touching the storage layer (new minutely data silently absent from old cache, handled
+gracefully). The bar chart uses linear interpolation between 15-min API points to get
+60-bar visual density, which matches the iOS reference closely. RainViewer tile fetch is
+async (background thread → Clock callback), so the map renders the base tile immediately
+and the radar layer appears once the JSON fetch returns.
+
+**Known gaps (still open):**
+- The CartoDB dark tile + RainViewer radar is rendered as flat images in Kivy's AsyncImage,
+  not a real map widget — no panning or zooming inside the card.
+- The city pin on the precipitation map is fixed at the center of the tile, not the exact
+  pixel position of the lat/lon within the tile — accurate enough at zoom=7 but slightly off.
+- "Open in Maps" fallback on desktop opens Google Maps in browser (correct behavior, but
+  not visible to test without a phone).
+- Rain Forecasted card only appears when `minutely` is populated from a fresh API fetch.
+  Old cached data (before v1.4.05) will not show the card until the cache expires.
+
+---
+
 ## v1.4.04 — Visual redesign: iOS-faithful cards and location list
 *2026-06-30*
 

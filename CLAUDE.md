@@ -66,7 +66,7 @@ Version lives in two places (must always match):
 - **Package name:** `org.kakoritz.weatherbird`
 - **GitHub repo:** `git@github.com:kakoritz/weather.git`
 - **p4a:** commit `3762c88c` at `~/.p4a-py311/` (NEVER update this checkout)
-- **Version:** `1.4.04` (in `buildozer.spec` AND `main.py` — must match)
+- **Version:** `1.4.05` (in `buildozer.spec` AND `main.py` — must match)
 
 ---
 
@@ -124,7 +124,9 @@ src/
   widgets/
     hourly_card.py            ← HourlyForecastCard: horizontal ScrollView strip
     daily_forecast.py         ← DailyForecastCard: 10-day vertical list
-    detail_cards.py           ← DetailCardsGrid: AlertBanner, AQ, Temp Map, 2-col grid
+    detail_cards.py           ← DetailCardsGrid: AlertBanner, AQ, Temp Map, 2-col grid, Open in Maps
+    rain_forecast_card.py     ← RainForecastedCard: bar chart shown when rain expected <60 min
+    precip_map_card.py        ← PrecipitationMapCard: full-width CartoDB tile + RainViewer overlay
   utils/
     wmo_codes.py              ← WMO weather code → (label, condition_key) mapping; also
                                  DAY_GRADIENTS/NIGHT_GRADIENTS + get_gradients() for the

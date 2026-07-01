@@ -38,6 +38,8 @@ from src.widgets.weather_overlay import WeatherOverlay, overlay_for_night
 from src.widgets.hourly_card import HourlyForecastCard
 from src.widgets.daily_forecast import DailyForecastCard
 from src.widgets.detail_cards import AlertBanner, DetailCardsGrid
+from src.widgets.rain_forecast_card import RainForecastedCard, rain_card_info
+from src.widgets.precip_map_card import PrecipitationMapCard
 
 # Day sky blue — the universal daytime background under all conditions
 _DAY_SKY = (0.22, 0.60, 0.86, 1)
@@ -416,6 +418,10 @@ class WeatherDetailWidget(FloatLayout):
         if w.alerts:
             add_card(AlertBanner(alerts=w.alerts))
 
+        # ── Rain Forecasted card (when precip expected within 60 min) ──
+        if w.minutely and rain_card_info(w.minutely)[0] is not None:
+            add_card(RainForecastedCard(minutely=w.minutely), h=dp(142))
+
         # ── Hourly strip (with summary text as its header) ────────────
         next_hours = w.next_24_hours()
         if next_hours:
@@ -425,12 +431,24 @@ class WeatherDetailWidget(FloatLayout):
                 units=self._units,
             ), h=dp(210))
 
+        # ── Precipitation map card ────────────────────────────────────
+        from src.utils.units import fmt_temp
+        add_card(PrecipitationMapCard(
+            lat=self._location.lat,
+            lon=self._location.lon,
+            city=self._location.city,
+            temp_text=fmt_temp(w.current.temp, self._units),
+        ))
+
         # ── 10-day forecast ───────────────────────────
         if w.daily:
             add_card(DailyForecastCard(forecasts=w.daily, units=self._units))
 
         # ── Detail cards grid ─────────────────────────
-        add_card(DetailCardsGrid(data=w, units=self._units))
+        add_card(DetailCardsGrid(
+            data=w, units=self._units,
+            lat=self._location.lat, lon=self._location.lon,
+        ))
 
         attrib = Label(text='Data provided by Open-Meteo API · openstreetmap.org',
                        font_size=sp(10), color=(1, 1, 1, 0.45),

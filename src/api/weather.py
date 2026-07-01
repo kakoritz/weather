@@ -7,7 +7,7 @@ import requests
 
 from src.models.weather import (
     AirQualityData, CurrentConditions, DailyForecast,
-    HourlyEntry, WeatherData, WeatherAlert,
+    HourlyEntry, MinutelyEntry, WeatherData, WeatherAlert,
 )
 
 # NWS CAP severity ranking — higher shows first / sorts ahead
@@ -38,6 +38,7 @@ def _build_forecast_params(lat: float, lon: float) -> dict:
             'precipitation_sum,precipitation_probability_max,'
             'wind_speed_10m_max,uv_index_max,sunrise,sunset'
         ),
+        'minutely_15': 'precipitation,precipitation_probability',
         'temperature_unit': 'fahrenheit',
         'windspeed_unit': 'mph',
         'precipitation_unit': 'inch',
@@ -97,12 +98,25 @@ def _parse_forecast(json: dict, zip_code: str) -> WeatherData:
         for i in range(n_days)
     ]
 
+    m15 = json.get('minutely_15', {})
+    minutely = []
+    if m15 and 'time' in m15:
+        probs = m15.get('precipitation_probability', [])
+        precips = m15.get('precipitation', [])
+        for i in range(min(8, len(m15['time']))):  # next 2 hours
+            minutely.append(MinutelyEntry(
+                time=m15['time'][i],
+                precip=float(precips[i] or 0.0) if i < len(precips) else 0.0,
+                precip_prob=int(probs[i] or 0) if i < len(probs) else 0,
+            ))
+
     return WeatherData(
         location_zip=zip_code,
         fetched_at=datetime.now().isoformat(),
         current=current,
         hourly=hourly,
         daily=daily,
+        minutely=minutely,
     )
 
 

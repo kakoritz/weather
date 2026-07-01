@@ -5,7 +5,7 @@ sky behind the entire screen, frosted-glass stat cards floating on top of it, a 
 moon at night, live NWS alerts — built entirely in Python with **zero API keys, zero
 paid plans, zero secrets to manage.**
 
-**Current version: v1.4.04**
+**Current version: v1.4.05**
 
 ---
 
@@ -45,6 +45,10 @@ every layout bug, contrast issue, and touch-handling edge case in `CLAUDE_REVIEW
   sky instead of sitting on a solid background — see the weather move behind the data
 - **28-phase moon** — not 8, not a placeholder crescent — the actual lunar phase tonight
   with illumination %
+- **Rain Forecasted card** — when rain is expected within 60 minutes, a bar-chart card
+  appears showing exact timing and intensity from Open-Meteo minutely data
+- **Precipitation radar map** — live RainViewer radar overlay on a dark CartoDB base tile,
+  with city pin and "See More" that opens Windy.com precipitation layer
 - **Live NWS weather alerts** — active watches/warnings/advisories surface as a banner,
   free, no key, US locations
 - **Hourly strip** — `NOW` + next 23 hours with condition icon and temperature
