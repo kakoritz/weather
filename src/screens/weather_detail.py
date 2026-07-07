@@ -432,7 +432,6 @@ class WeatherDetailWidget(FloatLayout):
             ), h=dp(210))
 
         # ── Precipitation map card ────────────────────────────────────
-        from src.utils.units import fmt_temp
         add_card(PrecipitationMapCard(
             lat=self._location.lat,
             lon=self._location.lon,
